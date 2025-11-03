@@ -1,0 +1,123 @@
+import os
+import time
+from datetime import datetime
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
+from webdriver_manager.chrome import ChromeDriverManager
+
+URL = "https://music.apple.com/us/new"
+OUT_DIR = "apple_data"
+os.makedirs(OUT_DIR, exist_ok=True)
+
+SECTIONS = ["NEW", "LATEST SONGS", "NEW RELEASES", "TRENDING SONGS"]
+
+def get_section_data(driver):
+    data = []
+
+    for section_name in SECTIONS:
+        print(f"🔍 Capturing section: {section_name}")
+        try:
+            section_el = driver.find_element(
+                By.XPATH,
+                f"//h2[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), '{section_name}')]"
+            )
+            section = section_el.find_element(By.XPATH, "./ancestor::section")
+
+            # 화살표 클릭 반복
+            while True:
+                try:
+                    next_button = section.find_element(By.CSS_SELECTOR, "button[aria-label*='Next'], button[aria-label*='next']")
+                    if not next_button.is_enabled():
+                        break
+                    driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
+                    next_button.click()
+                    time.sleep(1.5)
+                except (NoSuchElementException, ElementClickInterceptedException):
+                    break
+
+            cards = section.find_elements(By.CSS_SELECTOR, "a[href*='/album/'], a[href*='/playlist/'], a[href*='/song/']")
+            for idx, card in enumerate(cards, start=1):
+                try:
+                    title = card.text.strip()
+                    if not title:
+                        continue
+                    parent = card.find_element(By.XPATH, "./..")
+                    artist_el = parent.find_element(By.CSS_SELECTOR, "span, div, p")
+                    artist = artist_el.text.strip() if artist_el else ""
+                    data.append({
+                        "대분류": section_name,
+                        "순서": idx,
+                        "콘텐츠명": title,
+                        "아티스트명": artist
+                    })
+                except Exception:
+                    continue
+        except Exception:
+            continue
+
+    return data
+
+def compare_with_previous(df_new):
+    """이전 데이터와 비교해서 추가/삭제 항목 표시"""
+    files = sorted([f for f in os.listdir(OUT_DIR) if f.endswith(".xlsx")])
+    if len(files) < 1:
+        return None, None
+
+    prev_file = os.path.join(OUT_DIR, files[-1])
+    df_prev = pd.read_excel(prev_file)
+
+    prev_set = set(zip(df_prev["대분류"], df_prev["콘텐츠명"], df_prev["아티스트명"]))
+    new_set = set(zip(df_new["대분류"], df_new["콘텐츠명"], df_new["아티스트명"]))
+
+    added = new_set - prev_set
+    removed = prev_set - new_set
+
+    df_added = pd.DataFrame(list(added), columns=["대분류", "콘텐츠명", "아티스트명"])
+    df_removed = pd.DataFrame(list(removed), columns=["대분류", "콘텐츠명", "아티스트명"])
+    return df_added, df_removed
+
+def main():
+    print(f"Fetching {URL} ...")
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1800,1200")
+
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+
+    try:
+        driver.get(URL)
+        time.sleep(6)
+        data = get_section_data(driver)
+        if not data:
+            print("⚠️ No data found.")
+            return
+
+        df_new = pd.DataFrame(data)
+        ts = datetime.now().strftime("%Y%m%d_%H%M")
+        out_main = os.path.join(OUT_DIR, f"apple_music_sections_{ts}.xlsx")
+        df_new.to_excel(out_main, index=False)
+        print(f"✅ Saved: {out_main}")
+
+        # 변화 비교
+        df_added, df_removed = compare_with_previous(df_new)
+        if df_added is not None:
+            if not df_added.empty:
+                added_path = os.path.join(OUT_DIR, f"added_{ts}.xlsx")
+                df_added.to_excel(added_path, index=False)
+                print(f"🆕 Added items: {added_path}")
+            if not df_removed.empty:
+                removed_path = os.path.join(OUT_DIR, f"removed_{ts}.xlsx")
+                df_removed.to_excel(removed_path, index=False)
+                print(f"❌ Removed items: {removed_path}")
+
+    finally:
+        driver.quit()
+
+if __name__ == "__main__":
+    main()
