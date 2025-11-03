@@ -4,7 +4,7 @@ on:
 schedule:
 # 매일 18:00 KST (UTC+9 → 09:00 UTC)
 - cron: '0 9 * * *'
-workflow_dispatch:  # 수동 실행 옵션
+workflow_dispatch:  # 수동 실행 가능
 
 jobs:
 capture:
@@ -24,7 +24,8 @@ uses: actions/checkout@v4
       pip install selenium pandas openpyxl webdriver-manager
 
   - name: Run Apple Music scraper
-    run: python scripts/capture_apple_music_sections_diff.py
+    run: |
+      python scripts/capture_apple_music_sections_diff.py
 
   - name: Commit and push results
     run: |
