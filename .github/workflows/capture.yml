@@ -27,7 +27,7 @@ jobs:
 
       - name: Run capture script
         run: |
-          python scripts/capture_melon.py
+          python scripts/capture_sites.py
 
       - name: Upload screenshot artifact
         uses: actions/upload-artifact@v4
