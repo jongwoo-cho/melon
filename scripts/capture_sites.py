@@ -119,15 +119,37 @@ def handle_melon():
     mutation_cleanup()
 
 def handle_genie():
-    try_js("document.querySelectorAll('.popdim, .poplayer, #pop, .ly_wrap, iframe').forEach(e=>e.remove());")
-    try_js("document.body.style.overflow='auto';")
     try_js("""
-      try{
-        var m=document.createElement('meta'); m.setAttribute('charset','UTF-8'); document.head.appendChild(m);
-      }catch(e){}
-      document.querySelectorAll('*').forEach(e=>{ try{ e.style.fontFamily='NanumGothic, Arial, sans-serif'; }catch(e){} });
+      document.querySelectorAll(
+        '#popup, .popdim, .poplayer, .ly_popup, .layer_popup, .ly_wrapper, .modal, iframe'
+      ).forEach(e => e.remove());
+      document.body.style.overflow = 'auto';
     """)
-    mutation_cleanup()
+    hide_high_zindex_overlays()
+
+    for sel in [
+        "button.close", "button.btn-close", ".btn_layer_close", 
+        ".btn-close", "a.close", ".pop-close", "button[aria-label*='닫기']"
+    ]:
+        try:
+            elems = driver.find_elements(By.CSS_SELECTOR, sel)
+            for e in elems:
+                try: e.click()
+                except: pass
+        except:
+            pass
+
+    send_escape_multiple(5, 0.3)
+    mutation_cleanup(duration=8, interval=0.8)
+
+    try_js("""
+      var meta = document.createElement('meta');
+      meta.setAttribute('charset','UTF-8');
+      document.head.appendChild(meta);
+      document.querySelectorAll('*').forEach(e=>{
+        try{ e.style.fontFamily='NanumGothic, Arial, sans-serif'; }catch(err){}
+      });
+    """)
 
 def handle_bugs():
     try_js("document.querySelectorAll('.popup, iframe, .layer, .modal').forEach(e=>e.remove());")
