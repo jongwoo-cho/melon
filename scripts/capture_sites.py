@@ -1,147 +1,131 @@
-# scripts/capture_sites.py
 import os
 import time
-from datetime import datetime, timedelta, timezone
+import pytz
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import JavascriptException
 from webdriver_manager.chrome import ChromeDriverManager
-from fpdf import FPDF
-from PIL import Image
+from fpdf import FPDF  # PDF 변환용
 
-# ---------- 설정 ----------
-KST = timezone(timedelta(hours=9))
-timestamp = datetime.now(KST).strftime("%y%m%d_%H%M")
-save_dir = "screenshots"
-os.makedirs(save_dir, exist_ok=True)
+# =========================================================
+# 기본 설정
+# =========================================================
+OUTPUT_DIR = "screenshots"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-sites = {
-    "melon": "https://www.melon.com/",
-    "genie": "https://www.genie.co.kr/",
-    "bugs": "https://music.bugs.co.kr/",
-    "flo": "https://www.music-flo.com/",
-}
+# KST 시간 기준 파일명
+kst = pytz.timezone('Asia/Seoul')
+now_kst = datetime.now(kst)
+timestamp = now_kst.strftime("%y%m%d_%H%M")
+pdf_filename = os.path.join(OUTPUT_DIR, f"screenshots_{timestamp}.pdf")
 
-options = Options()
-options.add_argument("--headless=new")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--window-size=1920,1200")
-options.add_argument("--lang=ko-KR")
-options.add_argument("--disable-notifications")
+# =========================================================
+# 공통 함수
+# =========================================================
+def init_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1440,3000")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--lang=ko-KR")
+    chrome_options.add_argument("--hide-scrollbars")
+    chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--blink-settings=imagesEnabled=true")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    return driver
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-# ---------- 유틸 ----------
-def try_js(js):
+def try_js(script):
     try:
-        return driver.execute_script(js)
-    except JavascriptException:
-        return None
-
-def remove_elements_by_selectors(selectors):
-    for sel in selectors:
-        try_js(f"document.querySelectorAll('{sel}').forEach(e=>e.remove());")
-        time.sleep(0.1)
-
-def hide_high_zindex_overlays():
-    js = """
-    (function(){
-      const els = Array.from(document.querySelectorAll('*'));
-      els.forEach(e=>{
-        try{
-          const s = window.getComputedStyle(e);
-          if(!s) return;
-          const z = parseInt(s.zIndex)||0;
-          if((s.position==='fixed' || s.position==='absolute') && z>1000){
-            e.style.display='none';
-          }
-          const rect = e.getBoundingClientRect();
-          if(rect.width>=window.innerWidth*0.8 && rect.height>=window.innerHeight*0.6 && z>500){
-            e.style.display='none';
-          }
-        }catch(err){}
-      });
-    })();
-    """
-    try_js(js)
-
-def remove_iframes_and_try_close():
-    try:
-        frames = driver.find_elements(By.TAG_NAME, "iframe")
-        for f in frames:
-            src = f.get_attribute("src") or ""
-            if any(k in src.lower() for k in ["ad", "ads", "popup", "layer", "pop", "consent"]):
-                try_js("arguments[0].remove();")
-        try_js("document.querySelectorAll('iframe').forEach(e=>{ if(!e.id||e.id.toLowerCase().includes('pop')||e.src.includes('popup')) e.remove(); });")
+        driver.execute_script(script)
     except Exception:
         pass
 
-def send_escape_multiple(times=3, sleep_between=0.5):
-    try:
-        body = driver.find_element(By.TAG_NAME, "body")
-        for _ in range(times):
-            try:
-                body.send_keys(Keys.ESCAPE)
-            except:
-                pass
-            time.sleep(sleep_between)
-    except:
-        pass
 
-def mutation_cleanup(duration=6.0, interval=0.6):
-    t0 = time.time()
-    while time.time() - t0 < duration:
-        remove_elements_by_selectors([
-            ".popup", ".pop_layer", ".layer_popup", ".layer_pop", ".lyrLayerPop", ".dimmed",
-            ".modal", ".modal-backdrop", ".overlay", ".overlay--dark",
-            "#popup", "#popLayer", "#pop", "#cmonLayerPopup"
-        ])
-        for sel in ["button.close", "button.btn_close", ".btn-close", ".close", ".btn_layer_close", ".pop-close", "button[aria-label*='닫기']"]:
-            try:
-                elems = driver.find_elements(By.CSS_SELECTOR, sel)
-                for e in elems:
-                    e.click()
-            except:
-                pass
+def send_escape_multiple(times=5, delay=0.2):
+    from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.common.action_chains import ActionChains
+    for _ in range(times):
+        ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+        time.sleep(delay)
+
+
+def hide_high_zindex_overlays():
+    try_js("""
+      (function(){
+        const els = Array.from(document.querySelectorAll('*'));
+        els.forEach(e=>{
+          try {
+            const s = window.getComputedStyle(e);
+            const z = parseInt(s.zIndex)||0;
+            if(z >= 999){
+              e.style.display='none';
+              e.style.visibility='hidden';
+            }
+          } catch(err){}
+        });
+      })();
+    """)
+
+
+def mutation_cleanup(duration=5, interval=0.5):
+    end = time.time() + duration
+    while time.time() < end:
         hide_high_zindex_overlays()
-        remove_iframes_and_try_close()
-        send_escape_multiple(1, 0.1)
         time.sleep(interval)
 
-# ---------- 사이트별 ----------
+
+# =========================================================
+# 사이트별 팝업 제거
+# =========================================================
 def handle_melon():
-    try_js("document.querySelectorAll('div[class*=layer], div[class*=popup], iframe').forEach(e=>e.remove());")
-    remove_elements_by_selectors(["#wrapPopup", ".lyr_layer", ".pop_close", ".pop-layer", ".pop"])
-    mutation_cleanup()
+    print("[INFO] Handling Melon popup...")
+    try_js("""
+      document.querySelectorAll('#popNotice, .layer_ad, #adPop, .pop_wrap, .popup, .layer_popup, .dimmed, .modal').forEach(e=>e.remove());
+      document.body.style.overflow='auto';
+    """)
+    send_escape_multiple(5, 0.2)
+    hide_high_zindex_overlays()
+    print("[INFO] Melon cleanup done.")
+
 
 def handle_genie():
+    print("[INFO] Handling Genie popup...")
+
+    # iframe 및 광고 제거
+    try_js("""
+      (function() {
+        const iframes = document.querySelectorAll('iframe');
+        for (let i=0; i<iframes.length; i++) {
+          try {
+            const f = iframes[i];
+            const src = f.src || '';
+            if (src.includes('popup') || src.includes('ad') || src.includes('event') || src.includes('banner')) {
+              f.remove();
+            } else if (f.contentWindow && f.contentWindow.document) {
+              f.contentWindow.document.body.innerHTML = '';
+            }
+          } catch(e) {}
+        }
+      })();
+    """)
+
+    # 팝업, dimmed, layer 제거
     try_js("""
       document.querySelectorAll(
-        '#popup, .popdim, .poplayer, .ly_popup, .layer_popup, .ly_wrapper, .modal, iframe'
+        '#popup, #pop, .popup, .popdim, .poplayer, .ly_popup, .ly_wrapper, .layer_popup, .modal, .dimmed, .ad_layer, .mask, .overlay, [id*="pop"], [class*="pop"]'
       ).forEach(e => e.remove());
       document.body.style.overflow = 'auto';
     """)
+
     hide_high_zindex_overlays()
+    send_escape_multiple(6, 0.2)
 
-    for sel in [
-        "button.close", "button.btn-close", ".btn_layer_close", 
-        ".btn-close", "a.close", ".pop-close", "button[aria-label*='닫기']"
-    ]:
-        try:
-            elems = driver.find_elements(By.CSS_SELECTOR, sel)
-            for e in elems:
-                try: e.click()
-                except: pass
-        except:
-            pass
-
-    send_escape_multiple(5, 0.3)
-    mutation_cleanup(duration=8, interval=0.8)
-
+    # 한글 폰트 깨짐 방지
     try_js("""
       var meta = document.createElement('meta');
       meta.setAttribute('charset','UTF-8');
@@ -150,77 +134,77 @@ def handle_genie():
         try{ e.style.fontFamily='NanumGothic, Arial, sans-serif'; }catch(err){}
       });
     """)
+    print("[INFO] Genie cleanup done.")
+
 
 def handle_bugs():
-    try_js("document.querySelectorAll('.popup, iframe, .layer, .modal').forEach(e=>e.remove());")
-    mutation_cleanup()
+    print("[INFO] Handling Bugs popup...")
+    try_js("""
+      document.querySelectorAll('.layer_popup, .popup, .ad_layer, .modal, .dimmed, .mask, [id*="popup"]').forEach(e=>e.remove());
+      document.body.style.overflow='auto';
+    """)
+    send_escape_multiple(4, 0.2)
+    hide_high_zindex_overlays()
+    print("[INFO] Bugs cleanup done.")
+
 
 def handle_flo():
-    try_js("document.querySelectorAll('flo-popup, flo-layer, .modal, .popup, iframe').forEach(e=>e.remove());")
-    mutation_cleanup()
+    print("[INFO] Handling FLO popup...")
+    try_js("""
+      document.querySelectorAll('.popup, .modal, .dimmed, .layer, .banner, [id*="pop"]').forEach(e=>e.remove());
+      document.body.style.overflow='auto';
+    """)
+    send_escape_multiple(4, 0.2)
+    hide_high_zindex_overlays()
+    print("[INFO] FLO cleanup done.")
 
-# ---------- 캡처 ----------
-temp_images = []
-for name, url in sites.items():
-    print(f"[INFO] Visiting {name}: {url}")
-    driver.get(url)
-    time.sleep(4)
 
-    try:
-        if name == "melon":
-            handle_melon()
-        elif name == "genie":
-            handle_genie()
-        elif name == "bugs":
-            handle_bugs()
-        elif name == "flo":
-            handle_flo()
-    except Exception as e:
-        print(f"[WARN] popup handler error for {name}: {e}")
+# =========================================================
+# PDF 저장 함수
+# =========================================================
+def save_to_pdf(driver, pdf, selector=None):
+    tmp_png = os.path.join(OUTPUT_DIR, "tmp.png")
 
-    mutation_cleanup(duration=3, interval=0.5)
-
-    try:
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight/3);")
-        time.sleep(0.5)
-        driver.execute_script("window.scrollTo(0, 0);")
-    except:
-        pass
-
-    img_path = os.path.join(save_dir, f"{name}_{timestamp}.png")
-    try:
-        driver.save_screenshot(img_path)
-        temp_images.append(img_path)
-        print(f"[OK] screenshot saved: {img_path}")
-    except Exception as e:
-        print(f"[ERROR] could not save screenshot for {name}: {e}")
-
-# ---------- PDF ----------
-pdf_path = os.path.join(save_dir, f"music_sites_{timestamp}.pdf")
-try:
-    pdf = FPDF()
-    font_path = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
-    if os.path.exists(font_path):
-        pdf.add_font("NanumGothic", "", font_path, uni=True)
-        pdf.set_font("NanumGothic", size=12)
+    if selector:
+        try:
+            element = driver.find_element(By.CSS_SELECTOR, selector)
+            element.screenshot(tmp_png)
+        except Exception as e:
+            print(f"[WARN] Element not found for selector: {selector}, full page screenshot instead.")
+            driver.save_screenshot(tmp_png)
     else:
-        pdf.set_font("Arial", size=12)
+        driver.save_screenshot(tmp_png)
 
-    for img in temp_images:
-        pdf.add_page()
-        pdf.cell(0, 8, os.path.basename(img), ln=True, align='C')
-        pdf.image(img, x=10, y=20, w=190)
-    pdf.output(pdf_path)
-    print(f"[OK] PDF created: {pdf_path}")
-except Exception as e:
-    print(f"[ERROR] PDF creation failed: {e}")
+    pdf.add_page()
+    pdf.image(tmp_png, x=10, y=10, w=180)
+    os.remove(tmp_png)
 
-# ---------- PNG 삭제 ----------
-for f in temp_images:
-    try:
-        os.remove(f)
-    except:
-        pass
 
-driver.quit()
-print("[DONE] Capture finished.")
+# =========================================================
+# 메인 실행
+# =========================================================
+if __name__ == "__main__":
+    driver = init_driver()
+    sites = [
+        ("Melon", "https://www.melon.com/chart/index.htm", handle_melon, None),
+        ("Genie", "https://www.genie.co.kr/chart/top200", handle_genie, None),
+        ("Bugs", "https://music.bugs.co.kr/chart", handle_bugs, None),
+        # FLO: 오늘 발매 음악 섹션만 캡처
+        ("FLO", "https://www.music-flo.com/browse", handle_flo, 'section[data-testid*="today"]')
+    ]
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=10)
+
+    for name, url, handler, selector in sites:
+        print(f"[INFO] Visiting {name}...")
+        driver.get(url)
+        time.sleep(6)
+        handler()
+
+        print(f"[INFO] Capturing {name}...")
+        save_to_pdf(driver, pdf, selector=selector)
+
+    pdf.output(pdf_filename)
+    print(f"[INFO] All captures saved as PDF: {pdf_filename}")
+    driver.quit()
