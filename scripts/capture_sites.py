@@ -37,7 +37,12 @@ driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), opti
 
 # ---------- PDF 생성기 ----------
 pdf = FPDF()
-pdf.add_font("NanumGothic", "", "/usr/share/fonts/truetype/nanum/NanumGothic.ttf", uni=True)
+# 한글 폰트 등록
+font_path = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+if os.path.exists(font_path):
+    pdf.add_font("NanumGothic", "", font_path, uni=True)
+else:
+    print("⚠️ NanumGothic 폰트를 찾을 수 없습니다. PDF 한글이 깨질 수 있습니다.")
 
 for name, url in sites.items():
     print(f"▶ {name.upper()} 방문 중...")
@@ -46,31 +51,25 @@ for name, url in sites.items():
 
     # ---------- 사이트별 팝업 제거 ----------
     if name == "melon":
-        # 팝업 iframe / layer 강제 제거
         driver.execute_script("""
-            const popups = document.querySelectorAll('div[style*="z-index"], .layer_popup, iframe');
-            popups.forEach(p => p.remove());
+            document.querySelectorAll('div[style*="z-index"], .layer_popup, iframe').forEach(e => e.remove());
+            document.body.style.overflow='auto';
         """)
-        driver.execute_script("document.body.style.overflow='auto';")
 
     elif name == "genie":
-        # 로그인 유도, 광고 팝업, 배경 블러 제거
         driver.execute_script("""
-            const blocks = document.querySelectorAll('#popup, .popup, .dimmed, .ly_popup, iframe');
-            blocks.forEach(el => el.remove());
+            document.querySelectorAll('#popup, .popup, .dimmed, .ly_popup, iframe').forEach(e => e.remove());
             document.body.style.overflow='auto';
         """)
 
     elif name == "bugs":
         driver.execute_script("""
-            const ads = document.querySelectorAll('.popup, iframe, .layer, .modal');
-            ads.forEach(e => e.remove());
+            document.querySelectorAll('.popup, iframe, .layer, .modal').forEach(e => e.remove());
         """)
 
     elif name == "flo":
         driver.execute_script("""
-            const popups = document.querySelectorAll('.modal, .popup, iframe');
-            popups.forEach(p => p.remove());
+            document.querySelectorAll('.modal, .popup, iframe').forEach(e => e.remove());
         """)
 
     time.sleep(2)
@@ -82,7 +81,10 @@ for name, url in sites.items():
 
     # ---------- PDF에 삽입 ----------
     pdf.add_page()
-    pdf.set_font("NanumGothic", "", 14)
+    if os.path.exists(font_path):
+        pdf.set_font("NanumGothic", "", 14)
+    else:
+        pdf.set_font("Arial", size=14)
     pdf.cell(0, 10, f"{name.upper()} ({timestamp})", ln=True, align="C")
     pdf.image(img_path, x=10, y=25, w=190)
 
