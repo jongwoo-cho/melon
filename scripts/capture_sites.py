@@ -4,162 +4,91 @@ from datetime import datetime, timedelta, timezone
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-from PIL import Image
+from fpdf import FPDF  # PDF 변환용
 
-# 저장 폴더
-os.makedirs("screenshots", exist_ok=True)
-
-# 한국 표준시 기준 시간
+# ---------- 한국 시간 ----------
 KST = timezone(timedelta(hours=9))
 timestamp = datetime.now(KST).strftime("%y%m%d_%H%M")
 
-# Chrome 옵션
-chrome_options = Options()
-chrome_options.add_argument("--headless=new")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_argument("--window-size=1920,3000")
+# ---------- 저장 폴더 ----------
+save_dir = "screenshots"
+os.makedirs(save_dir, exist_ok=True)
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+# ---------- 사이트 목록 ----------
+sites = {
+    "melon": "https://www.melon.com/",
+    "genie": "https://www.genie.co.kr/",
+    "bugs": "https://music.bugs.co.kr/",
+    "flo": "https://www.music-flo.com/",
+}
 
-# ---------------------------
-# 공통 유틸
-# ---------------------------
-def hard_popup_clean():
-    """공통 팝업 제거"""
-    driver.execute_script("""
-        document.querySelectorAll(
-            'iframe, .popup, .layer_popup, .dimmed, #popLayer, #modal-root, .modal, .overlay'
-        ).forEach(e => e.remove());
-        document.body.style.overflow = 'auto';
-    """)
+# ---------- 브라우저 옵션 ----------
+options = Options()
+options.add_argument("--headless=new")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--window-size=1920,1080")
+options.add_argument("--disable-notifications")
+options.add_argument("--lang=ko-KR")
 
-def close_popup_buttons(selectors):
-    """닫기 버튼을 여러 방식으로 클릭 시도"""
-    for sel in selectors:
-        for el in driver.find_elements(By.CSS_SELECTOR, sel):
-            try:
-                el.click()
-                time.sleep(0.3)
-            except:
-                pass
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-def capture_section(name, url, selector, popup_handler=None):
-    print(f"🔹 {name} 접속 중...")
+# ---------- PDF 생성기 ----------
+pdf = FPDF()
+pdf.add_font("NanumGothic", "", "/usr/share/fonts/truetype/nanum/NanumGothic.ttf", uni=True)
+
+for name, url in sites.items():
+    print(f"▶ {name.upper()} 방문 중...")
     driver.get(url)
     time.sleep(5)
 
-    if popup_handler:
-        popup_handler()
-    else:
-        hard_popup_clean()
+    # ---------- 사이트별 팝업 제거 ----------
+    if name == "melon":
+        # 팝업 iframe / layer 강제 제거
+        driver.execute_script("""
+            const popups = document.querySelectorAll('div[style*="z-index"], .layer_popup, iframe');
+            popups.forEach(p => p.remove());
+        """)
+        driver.execute_script("document.body.style.overflow='auto';")
+
+    elif name == "genie":
+        # 로그인 유도, 광고 팝업, 배경 블러 제거
+        driver.execute_script("""
+            const blocks = document.querySelectorAll('#popup, .popup, .dimmed, .ly_popup, iframe');
+            blocks.forEach(el => el.remove());
+            document.body.style.overflow='auto';
+        """)
+
+    elif name == "bugs":
+        driver.execute_script("""
+            const ads = document.querySelectorAll('.popup, iframe, .layer, .modal');
+            ads.forEach(e => e.remove());
+        """)
+
+    elif name == "flo":
+        driver.execute_script("""
+            const popups = document.querySelectorAll('.modal, .popup, iframe');
+            popups.forEach(p => p.remove());
+        """)
 
     time.sleep(2)
 
-    try:
-        section = driver.find_element(By.CSS_SELECTOR, selector)
-        filename = f"screenshots/{name}_temp.png"
-        section.screenshot(filename)
-        print(f"✅ {name} 최신 음악 영역 캡처 완료")
-        return filename
-    except Exception as e:
-        print(f"⚠️ {name} 영역 캡처 실패 ({e}) → 전체 페이지 저장")
-        fallback = f"screenshots/{name}_temp.png"
-        driver.save_screenshot(fallback)
-        return fallback
+    # ---------- 캡처 ----------
+    img_path = os.path.join(save_dir, f"{name}_{timestamp}.png")
+    driver.save_screenshot(img_path)
+    print(f"📸 {name} 캡처 완료 → {img_path}")
 
-# ---------------------------
-# 사이트별 팝업 핸들러
-# ---------------------------
-def melon_popups():
-    close_popup_buttons(["#layer_popup_close", ".btn_close", ".wrap_popup button", "button[aria-label='닫기']"])
-    hard_popup_clean()
-
-def genie_popups():
-    close_popup_buttons([".popup-close", ".close", "button[aria-label='닫기']", ".btn-close"])
-    # EUC-KR → UTF-8 메타태그 강제 + 나눔고딕 폰트 적용
-    try:
-        driver.execute_script("""
-            var meta = document.createElement('meta');
-            meta.setAttribute('charset', 'UTF-8');
-            document.head.appendChild(meta);
-            document.querySelectorAll('*').forEach(e => {
-                e.style.fontFamily = 'NanumGothic, sans-serif';
-            });
-        """)
-    except:
-        pass
-    hard_popup_clean()
-
-def bugs_popups():
-    close_popup_buttons([".layerClose", ".btnClose", ".popupClose", "button[aria-label='닫기']"])
-    hard_popup_clean()
-
-def flo_popups():
-    close_popup_buttons([".btn_close", "button[aria-label='닫기']", "button[class*='close']"])
-    # shadow DOM 기반 팝업 제거
-    driver.execute_script("""
-        document.querySelectorAll('flo-popup, flo-layer, [id*="modal"]').forEach(e => e.remove());
-    """)
-    hard_popup_clean()
-
-# ---------------------------
-# 사이트 정의
-# ---------------------------
-sites = {
-    "melon": {
-        "url": "https://www.melon.com/",
-        "selector": "#conts_section div.new_song_wrap",
-        "popup": melon_popups
-    },
-    "genie": {
-        "url": "https://www.genie.co.kr/",
-        "selector": "#new-album, .newest, .new-album",
-        "popup": genie_popups
-    },
-    "bugs": {
-        "url": "https://music.bugs.co.kr/",
-        "selector": "section#newAlbum, .newAlbumSection",
-        "popup": bugs_popups
-    },
-    "flo": {
-        "url": "https://www.music-flo.com/",
-        "selector": "section[class*='NewMusic'], section[class*='latest'], div[class*='new-song']",
-        "popup": flo_popups
-    }
-}
-
-# ---------------------------
-# 실행
-# ---------------------------
-captured_files = []
-
-for name, info in sites.items():
-    path = capture_section(name, info["url"], info["selector"], info["popup"])
-    captured_files.append(path)
+    # ---------- PDF에 삽입 ----------
+    pdf.add_page()
+    pdf.set_font("NanumGothic", "", 14)
+    pdf.cell(0, 10, f"{name.upper()} ({timestamp})", ln=True, align="C")
+    pdf.image(img_path, x=10, y=25, w=190)
 
 driver.quit()
 
-# ---------------------------
-# PDF 병합
-# ---------------------------
-if captured_files:
-    pdf_path = f"screenshots/music_latest_{timestamp}.pdf"
-    images = [Image.open(p).convert("RGB") for p in captured_files if os.path.exists(p)]
-    if images:
-        first, rest = images[0], images[1:]
-        first.save(pdf_path, save_all=True, append_images=rest)
-        print(f"📄 PDF 생성 완료: {pdf_path}")
-
-# ---------------------------
-# PNG 임시파일 삭제
-# ---------------------------
-for p in captured_files:
-    try:
-        os.remove(p)
-    except:
-        pass
-
-print("🎉 모든 사이트 최신음악 PDF 캡처 완료 (팝업 제거 + 한글 폰트 적용됨)")
+# ---------- PDF 저장 ----------
+pdf_path = os.path.join(save_dir, f"music_sites_{timestamp}.pdf")
+pdf.output(pdf_path)
+print(f"✅ PDF 저장 완료 → {pdf_path}")
