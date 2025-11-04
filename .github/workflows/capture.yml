@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: '5 3 * * *'   # 오전 12:05 UTC (한국시간 12:05)
-    - cron: '5 9 * * *'   # 오후 6:05 UTC (한국시간 18:05)
+    - cron: '5 3 * * *'   # 한국시간 12:05 (UTC 03:05)
+    - cron: '5 9 * * *'   # 한국시간 18:05 (UTC 09:05)
   workflow_dispatch:
 
 jobs:
@@ -42,6 +42,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add screenshots/*.pdf
-          git commit -m "Update music site screenshots $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
+          git commit -m "Update music site captures $(date '+%Y-%m-%d %H:%M')" || echo "No changes to commit"
           git pull origin main --rebase
           git push origin HEAD:main
