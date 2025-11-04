@@ -2,18 +2,17 @@ name: Music Sites Daily Capture
 
 permissions:
   contents: write
-  
+
 on:
   schedule:
-    # 매일 12:05 KST → UTC 03:05
-    - cron: '5 3 * * *'
-    # 매일 18:05 KST → UTC 09:05
-    - cron: '5 9 * * *'
+    - cron: '5 3 * * *'   # 오전 12:05 (한국시간 09:05)
+    - cron: '5 9 * * *'   # 오후 6:05 (한국시간 18:05)
   workflow_dispatch:
 
 jobs:
   capture:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -23,18 +22,26 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
       - name: Install dependencies
         run: |
           pip install selenium webdriver-manager
 
-      - name: Run music site screenshot script
+      - name: Run capture script
         run: |
-          python scripts/capture_sites.py
+          python scripts/capture_music_sites.py
 
       - name: Commit and push screenshots
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add screenshots/*.png
           git commit -m "Update music site screenshots $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
-          git push
+          git pull origin main --rebase
+          git push origin HEAD:main
