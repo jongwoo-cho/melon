@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: '5 3 * * *'   # 오전 12:05 (KST 09:05)
-    - cron: '5 9 * * *'   # 오후 6:05 (KST 18:05)
+    - cron: '5 3 * * *'   # 12:05 KST (UTC+9 → 03:05 UTC)
+    - cron: '5 9 * * *'   # 18:05 KST (UTC+9 → 09:05 UTC)
   workflow_dispatch:
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager pillow
+          pip install selenium webdriver-manager pillow fpdf
 
       - name: Run capture script
         run: |
@@ -45,6 +45,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add screenshots/*.pdf
-          git commit -m "Update music site screenshots $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
+          git commit -m "Update music site captures $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
           git pull origin main --rebase
           git push origin HEAD:main
