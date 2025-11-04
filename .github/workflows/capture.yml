@@ -1,5 +1,8 @@
 name: Music Sites Daily Capture
 
+permissions:
+  contents: write
+  
 on:
   schedule:
     # 매일 12:05 KST → UTC 03:05
