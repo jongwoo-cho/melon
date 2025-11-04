@@ -33,7 +33,7 @@ chrome_options.add_argument(
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
 # ───────────────────────────────
-# 공통 팝업 제거 함수
+# 공통 팝업 제거 함수 (문법 오류 수정)
 # ───────────────────────────────
 def brutal_popup_killer():
     js = """
@@ -41,17 +41,15 @@ def brutal_popup_killer():
             // 모든 iframe 제거
             document.querySelectorAll('iframe').forEach(f => f.remove());
 
-            // 팝업, 레이어, 모달로 보이는 요소 제거
-            const popupLike = [
-                'popup', 'layer', 'modal', 'banner', 'dim', 'ad', 'event', 'appdown'
-            ];
+            // 팝업, 레이어, 모달, 배너로 보이는 요소 제거
+            const popupLike = ['popup', 'layer', 'modal', 'banner', 'dim', 'ad', 'event', 'appdown'];
             document.querySelectorAll('*').forEach(el => {
                 const id = el.id ? el.id.toLowerCase() : '';
                 const cls = el.className ? el.className.toString().toLowerCase() : '';
                 const style = window.getComputedStyle(el);
                 if (
                     popupLike.some(k => id.includes(k) || cls.includes(k)) ||
-                    style.position === 'fixed' && style.zIndex > '100'
+                    (style.position === 'fixed' && parseInt(style.zIndex) > 100)
                 ) {
                     el.remove();
                 }
@@ -63,7 +61,7 @@ def brutal_popup_killer():
                     e.shadowRoot.querySelectorAll('*').forEach(child => {
                         const id = child.id ? child.id.toLowerCase() : '';
                         const cls = child.className ? child.className.toString().toLowerCase() : '';
-                        if (popupLike.some(k => id.includes(k) or cls.includes(k))) {
+                        if (popupLike.some(k => id.includes(k) || cls.includes(k))) {
                             child.remove();
                         }
                     });
@@ -95,7 +93,7 @@ def capture_site(name, url, scroll_target=None):
 
     elif name == "genie":
         driver.execute_script("""
-            document.querySelectorAll('#popLayer, .main-popup, .dimmed, #event_layer, .layer_popup').forEach(e=>e.remove());
+            document.querySelectorAll('#popLayer, .main-popup, .dimmed, #event_layer, .layer_popup, .app-down').forEach(e=>e.remove());
             document.querySelectorAll('iframe').forEach(f=>f.remove());
         """)
 
