@@ -33,7 +33,7 @@ jobs:
 
       - name: Run capture script
         run: |
-          python scripts/capture_music_sites.py
+          python scripts/capture_sites.py
 
       - name: Commit and push screenshots
         env:
