@@ -10,6 +10,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from fpdf import FPDF
+import base64
 
 # ───────────────────────────────
 # 기본 설정
@@ -40,7 +41,7 @@ driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), opti
 def brutal_popup_killer():
     js = """
     try {
-        const keywords = ['popup','layer','modal','banner','dim','ad','event','app','notice','download'];
+        const keywords = ['popup','layer','modal','banner','dim','ad','event','app','notice','download','promotion'];
         document.querySelectorAll('*').forEach(el => {
             const id = el.id ? el.id.toLowerCase() : '';
             const cls = el.className ? el.className.toString().toLowerCase() : '';
@@ -66,50 +67,50 @@ def capture_full_page(name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
 
-    # 각 사이트별 대기 대상 지정
-    wait_target = {
+    # 페이지 완전히 로딩될 때까지 대기
+    WebDriverWait(driver, 30).until(
+        lambda d: d.execute_script("return document.readyState") == "complete"
+    )
+
+    # 주요 콘텐츠 엘리먼트 로딩 대기
+    content_targets = {
         "melon": "div.wrap_main_chart",
-        "genie": "div.main-contents, div#wrap",
-        "bugs": "div#container, div#gnb",
-        "flo": "section[data-testid='newReleaseTodaySection'], div#root"
+        "genie": "div#wrap, main, div.main-contents",
+        "bugs": "div#container, div#gnb, div#contentArea",
+        "flo": "div#root, section[data-testid='newReleaseTodaySection']"
     }
+    selector = content_targets.get(name, "body")
 
-    selector = wait_target.get(name, "body")
-
-    # body와 주요 콘텐츠가 뜰 때까지 최대 20초 대기
     try:
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
     except:
-        print(f"[!] {name}: body or main content not fully loaded")
+        print(f"[!] {name}: main content load timeout")
 
-    # 팝업 제거 강화
     time.sleep(3)
     brutal_popup_killer()
     time.sleep(2)
-    brutal_popup_killer()
 
-    # 안전하게 스크롤 내려서 lazy load 완료
+    # lazy load 스크롤
     try:
         last_height = driver.execute_script("return document.body.scrollHeight")
-        for y in range(0, last_height, 1000):
+        for y in range(0, last_height, 800):
             driver.execute_script(f"window.scrollTo(0, {y});")
-            time.sleep(0.5)
+            time.sleep(0.3)
         driver.execute_script("window.scrollTo(0, 0);")
     except:
         pass
 
-    # 전체 높이 계산
-    try:
-        full_height = driver.execute_script("return document.body.scrollHeight || 1080")
-    except:
-        full_height = 1080
-
+    # 전체 높이 계산 및 설정
+    full_height = driver.execute_script("return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 1080)")
     driver.set_window_size(1920, full_height)
     time.sleep(1)
 
+    # 더 안정적인 캡처 (Chrome DevTools Protocol)
     screenshot_path = f"screenshots/{name}_{timestamp}.png"
-    driver.save_screenshot(screenshot_path)
+    screenshot = driver.execute_cdp_cmd("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": True})
+    with open(screenshot_path, "wb") as f:
+        f.write(base64.b64decode(screenshot["data"]))
+
     print(f"✅ {name} captured → {screenshot_path}")
 
 # ───────────────────────────────
