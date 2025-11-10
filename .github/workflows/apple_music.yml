@@ -26,7 +26,7 @@ jobs:
 
       - name: Run capture script
         run: |
-          python itunes_daily_capture.py
+          python capture_itunes.py
 
       - name: Upload Captures
         uses: actions/upload-artifact@v4
