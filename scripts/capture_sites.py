@@ -54,7 +54,10 @@ def brutal_popup_killer():
         document.body.style.overflow = 'auto';
     } catch(e) { console.error(e); }
     """
-    driver.execute_script(js)
+    try:
+        driver.execute_script(js)
+    except Exception as e:
+        print(f"[!] popup_killer error: {e}")
 
 # ───────────────────────────────
 # 전체화면 캡처 함수
@@ -63,24 +66,27 @@ def capture_full_page(name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
 
-    # 페이지 로드 완료 대기
+    # <body>가 나타날 때까지 대기
     try:
-        WebDriverWait(driver, 15).until(
-            lambda d: d.execute_script("return document.readyState") == "complete"
-        )
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     except:
-        pass
+        print(f"[!] {name}: body not loaded, continuing anyway")
 
-    # JS 렌더링 대기
-    time.sleep(8)
+    # 추가 대기 (JS 렌더링용)
+    time.sleep(6)
 
     # 팝업 제거 2회
     brutal_popup_killer()
     time.sleep(2)
     brutal_popup_killer()
 
-    # 페이지 전체 높이로 캡처
-    full_height = driver.execute_script("return document.body.scrollHeight")
+    # 전체 페이지 높이 확인 (예외 안전)
+    try:
+        full_height = driver.execute_script("return document.body ? document.body.scrollHeight : 1080")
+    except Exception as e:
+        print(f"[!] Failed to get scrollHeight for {name}: {e}")
+        full_height = 1080
+
     driver.set_window_size(1920, full_height)
     time.sleep(1)
 
