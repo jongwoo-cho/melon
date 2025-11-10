@@ -24,6 +24,7 @@ SITES = {
 
 def setup_driver():
     options = Options()
+    # GUI 모드 (headless 제거)
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
@@ -37,19 +38,29 @@ def setup_driver():
     return driver
 
 def remove_popups(driver):
-    js = """
-    const els = document.querySelectorAll('iframe, .popup, .layer_popup, .modal, .dimmed, [role="dialog"]');
-    els.forEach(e => e.remove());
+    """공통 팝업 제거 및 반복 제거"""
+    js_code = """
+    function removeAllPopups() {
+        const els = document.querySelectorAll(
+            'iframe, .popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer'
+        );
+        els.forEach(e => e.remove());
+    }
+    removeAllPopups();
+    setTimeout(removeAllPopups, 1000);
+    setTimeout(removeAllPopups, 2000);
     """
     try:
-        driver.execute_script(js)
+        driver.execute_script(js_code)
     except:
         pass
 
 def capture_full_page_scroll(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
-    time.sleep(5)
+    time.sleep(3)
+    remove_popups(driver)
+    time.sleep(1)
     remove_popups(driver)
     time.sleep(1)
 
@@ -67,7 +78,7 @@ def capture_full_page_scroll(driver, name, url):
         screenshots.append(path)
         scroll_position += viewport_height - 200  # 약간의 overlap
         part += 1
-
+        total_height = driver.execute_script("return document.body.scrollHeight")
         if scroll_position >= total_height:
             break
 
