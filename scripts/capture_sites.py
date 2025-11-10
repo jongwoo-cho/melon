@@ -42,16 +42,23 @@ def setup_driver():
     return driver
 
 def remove_popups(driver):
-    """팝업 제거: 일반, iframe, Shadow DOM 재귀"""
+    """모든 팝업 제거: 일반 + iframe + Shadow DOM"""
     js = """
     function hideAll(doc){
         try{
+            // 일반 팝업
             doc.querySelectorAll('.popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer').forEach(e=>e.style.display='none');
+            
+            // Shadow DOM 내부
             doc.querySelectorAll('*').forEach(el=>{
                 if(el.shadowRoot) hideAll(el.shadowRoot);
             });
+
+            // iframe 내부
             doc.querySelectorAll('iframe').forEach(f=>{
-                try{ if(f.contentDocument) hideAll(f.contentDocument); } catch(e){}
+                try{ 
+                    if(f.contentDocument) hideAll(f.contentDocument); 
+                } catch(e){}
             });
         }catch(e){}
     }
@@ -64,7 +71,7 @@ def remove_popups(driver):
         pass
 
 def click_close_buttons(driver):
-    """닫기 버튼이 있으면 클릭"""
+    """닫기 버튼 클릭"""
     selectors = ['.popup-close', '.layer-close', '.btn_close', '.btn-close', '[aria-label="닫기"]']
     for sel in selectors:
         try:
