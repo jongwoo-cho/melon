@@ -32,71 +32,25 @@ def setup_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
-    options.add_argument("--disable-popup-blocking")
     options.add_argument("--disable-infobars")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=ko-KR")
-    options.add_argument("--font-render-hinting=none")
     options.add_argument("--disable-gpu")
+    # 크롬 팝업/알림 차단
+    prefs = {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_setting_values.popups": 2,
+        "profile.default_content_setting_values.automatic_downloads": 1
+    }
+    options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     return driver
-
-def dismiss_alerts(driver):
-    """브라우저 alert, confirm, prompt 모두 닫기"""
-    try:
-        while True:
-            alert = driver.switch_to.alert
-            alert.dismiss()  # 취소 클릭
-            time.sleep(0.5)
-    except:
-        pass
-
-def remove_popups(driver):
-    """모든 팝업 제거: 일반 + iframe + Shadow DOM"""
-    js = """
-    function hideAll(doc){
-        try{
-            doc.querySelectorAll('.popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer').forEach(e=>e.style.display='none');
-            doc.querySelectorAll('*').forEach(el=>{
-                if(el.shadowRoot) hideAll(el.shadowRoot);
-            });
-            doc.querySelectorAll('iframe').forEach(f=>{
-                try{ if(f.contentDocument) hideAll(f.contentDocument); } catch(e){}
-            });
-        }catch(e){}
-    }
-    hideAll(document);
-    setInterval(()=>hideAll(document), 1000);
-    """
-    try:
-        driver.execute_script(js)
-    except WebDriverException:
-        pass
-
-def click_close_buttons(driver):
-    """닫기 버튼 클릭"""
-    selectors = ['.popup-close', '.layer-close', '.btn_close', '.btn-close', '[aria-label="닫기"]']
-    for sel in selectors:
-        try:
-            elems = driver.find_elements(By.CSS_SELECTOR, sel)
-            for e in elems:
-                e.click()
-        except:
-            continue
 
 def capture_full_page(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
     time.sleep(3)
 
-    dismiss_alerts(driver)
-    remove_popups(driver)
-    click_close_buttons(driver)
-    time.sleep(1)
-    dismiss_alerts(driver)
-    remove_popups(driver)
-
-    # 전체 페이지 스크롤 캡처
     total_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
     screenshots = []
@@ -106,9 +60,6 @@ def capture_full_page(driver, name, url):
     while scroll_position < total_height:
         driver.execute_script(f"window.scrollTo(0, {scroll_position});")
         time.sleep(1.5)
-        dismiss_alerts(driver)
-        remove_popups(driver)
-        click_close_buttons(driver)
         path = os.path.join(SAVE_DIR, f"{name}_part{part}.png")
         driver.save_screenshot(path)
         screenshots.append(path)
