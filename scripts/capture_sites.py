@@ -9,16 +9,12 @@ from webdriver_manager.chrome import ChromeDriverManager
 from fpdf import FPDF
 from PIL import Image
 
-# 스크린샷 저장 폴더
 SAVE_DIR = "screenshots"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# KST 기준 시각
 kst = pytz.timezone("Asia/Seoul")
-now = datetime.now(kst)
-timestamp = now.strftime("%y%m%d_%H%M")
+timestamp = datetime.now(kst).strftime("%y%m%d_%H%M")
 
-# 캡처 대상 사이트
 SITES = {
     "melon": "https://www.melon.com/",
     "genie": "https://www.genie.co.kr/",
@@ -26,28 +22,26 @@ SITES = {
     "flo": "https://www.music-flo.com/",
 }
 
+
 def setup_driver():
-    """Chrome 드라이버 설정 (GUI 모드, 팝업 제거 옵션 포함)"""
     options = Options()
+    # GUI 모드 (headless 제거)
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--start-maximized")
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-popup-blocking")
     options.add_argument("--disable-infobars")
+    options.add_argument("--window-size=1920,1080")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     return driver
 
 
 def remove_popups(driver):
-    """사이트 공통 팝업 제거 (광고, 알림, 배너 등)"""
+    """공통 팝업 제거"""
     js_code = """
     const popups = document.querySelectorAll('div[role="dialog"], iframe, .popup, .layer_popup, .modal, .dimmed');
     popups.forEach(el => el.remove());
-    const overlays = document.querySelectorAll('*');
-    overlays.forEach(el => {
-        if (getComputedStyle(el).zIndex > 1000) el.remove();
-    });
     """
     try:
         driver.execute_script(js_code)
@@ -55,66 +49,72 @@ def remove_popups(driver):
         pass
 
 
+def scroll_full_page(driver):
+    """스크롤 끝까지 내려서 lazy-load 포함 전체 로드"""
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(1.5)
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+    driver.execute_script("window.scrollTo(0, 0);")  # 다시 맨 위로
+
+
 def capture_site(driver, name, url):
-    """사이트 캡처"""
     print(f"[+] Capturing {name} ...")
     driver.get(url)
     time.sleep(5)
     remove_popups(driver)
-    time.sleep(1)
+    scroll_full_page(driver)  # ⬅️ 페이지 끝까지 로드
 
-    # 전체 페이지 스크롤 높이 계산
-    full_height = driver.execute_script("return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 1080)")
+    # 전체 높이 다시 계산
+    full_height = driver.execute_script("return document.body.scrollHeight")
     driver.set_window_size(1920, full_height)
-    time.sleep(1)
+    time.sleep(0.5)
 
-    # PNG 파일 저장
-    img_path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
-    driver.save_screenshot(img_path)
-    print(f"✅ {name} captured → {img_path}")
-    return img_path
+    path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
+    driver.save_screenshot(path)
+    print(f"✅ {name} captured → {path}")
+    return path
 
 
-def merge_to_pdf(image_files, output_path):
-    """여러 PNG를 하나의 PDF로 합침"""
+def merge_to_pdf(images, output_path):
     pdf = FPDF()
-    for img_path in image_files:
+    for img_path in images:
         img = Image.open(img_path)
         w, h = img.size
-        pdf_w, pdf_h = 210, 297  # A4 기준(mm)
-        ratio = min(pdf_w / w * 96 / 25.4, pdf_h / h * 96 / 25.4)
+        ratio = min(210 / w * 96 / 25.4, 297 / h * 96 / 25.4)
         new_w, new_h = w * ratio, h * ratio
         pdf.add_page()
-        temp_jpg = img_path.replace(".png", "_temp.jpg")
-        img.convert("RGB").save(temp_jpg)
-        pdf.image(temp_jpg, x=0, y=0, w=new_w, h=new_h)
-        os.remove(temp_jpg)
+        temp = img_path.replace(".png", "_temp.jpg")
+        img.convert("RGB").save(temp)
+        pdf.image(temp, x=0, y=0, w=new_w, h=new_h)
+        os.remove(temp)
     pdf.output(output_path, "F")
-    print(f"📄 Combined PDF saved → {output_path}")
+    print(f"📄 PDF saved → {output_path}")
 
 
 def main():
     driver = setup_driver()
-    captured_images = []
+    captured = []
 
     for name, url in SITES.items():
         try:
-            img_path = capture_site(driver, name, url)
-            captured_images.append(img_path)
+            captured.append(capture_site(driver, name, url))
         except Exception as e:
-            print(f"[!] {name} capture failed: {e}")
-            continue
+            print(f"[!] {name} failed: {e}")
 
     driver.quit()
 
-    if captured_images:
+    if captured:
         pdf_path = os.path.join(SAVE_DIR, f"music_sites_{timestamp}.pdf")
-        merge_to_pdf(captured_images, pdf_path)
+        merge_to_pdf(captured, pdf_path)
+        for f in captured:
+            os.remove(f)
+        print("🧹 PNGs deleted")
 
-        # PNG 파일은 정리
-        for img in captured_images:
-            os.remove(img)
-        print("🧹 Temporary PNGs removed")
 
 if __name__ == "__main__":
     main()
