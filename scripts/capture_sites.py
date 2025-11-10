@@ -11,12 +11,15 @@ from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 from fpdf import FPDF
 
+# 저장 폴더
 SAVE_DIR = "screenshots"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
+# 시간 설정 (KST)
 kst = pytz.timezone("Asia/Seoul")
 timestamp = datetime.now(kst).strftime("%y%m%d_%H%M")
 
+# 사이트 목록
 SITES = {
     "melon": "https://www.melon.com/",
     "genie": "https://www.genie.co.kr/",
@@ -39,7 +42,7 @@ def setup_driver():
     return driver
 
 def remove_popups(driver):
-    """팝업 제거: iframe + Shadow DOM + 반복"""
+    """팝업 제거: 일반, iframe, Shadow DOM 재귀"""
     js = """
     function hideAll(doc){
         try{
@@ -81,6 +84,7 @@ def capture_full_page(driver, name, url):
     time.sleep(1)
     remove_popups(driver)
 
+    # 전체 페이지 스크롤 캡처
     total_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
     screenshots = []
@@ -101,33 +105,67 @@ def capture_full_page(driver, name, url):
         if scroll_position >= total_height:
             break
 
-    # 이미지 병합
-    images = [Image.open(p) for p in screenshots]
-    widths, heights = zip(*(i.size for i in images))
-    merged_height = sum(heights) - (len(images)-1)*200
-    merged = Image.new("RGB", (widths[0], merged_height))
-    y = 0
-    for i, img in enumerate(images):
-        if i > 0: y -= 200
-        merged.paste(img, (0, y))
-        y += img.height
-    for p in screenshots: os.remove(p)
-
-    out_path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
-    merged.save(out_path)
-    print(f"✅ {name} captured → {out_path}")
-    return out_path
+    # PNG 병합
+    try:
+        images = [Image.open(p) for p in screenshots if os.path.exists(p)]
+        if not images:
+            print(f"[!] {name} 스크린샷이 존재하지 않아 PDF를 생성할 수 없습니다.")
+            return None
+        widths, heights = zip(*(i.size for i in images))
+        merged_height = sum(heights) - (len(images)-1)*200
+        merged = Image.new("RGB", (widths[0], merged_height))
+        y = 0
+        for i, img in enumerate(images):
+            if i > 0: y -= 200
+            merged.paste(img, (0, y))
+            y += img.height
+        out_path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
+        merged.save(out_path)
+        for p in screenshots: os.remove(p)
+        print(f"✅ {name} captured → {out_path}")
+        return out_path
+    except Exception as e:
+        print(f"[!] {name} 병합 오류: {e}")
+        return None
 
 def merge_to_pdf(images, output_path):
-    pdf = FPDF()
-    for img_path in images:
-        img = Image.open(img_path)
-        w, h = img.size
-        ratio = min(210 / (w * 0.2645), 297 / (h * 0.2645))
-        new_w, new_h = w * 0.2645 * ratio, h * 0.2645 * ratio
-        pdf.add_page()
-        temp = img_path.replace(".png","_temp.jpg")
-        img.convert("RGB").save(temp)
-        pdf.image(temp, x=0, y=0, w=new_w, h=new_h)
-        os.remove(temp)
-    pdf.outpu
+    try:
+        pdf = FPDF()
+        for img_path in images:
+            if not img_path or not os.path.exists(img_path):
+                continue
+            img = Image.open(img_path)
+            w, h = img.size
+            ratio = min(210 / (w * 0.2645), 297 / (h * 0.2645))
+            new_w, new_h = w * 0.2645 * ratio, h * 0.2645 * ratio
+            pdf.add_page()
+            temp = img_path.replace(".png","_temp.jpg")
+            img.convert("RGB").save(temp)
+            pdf.image(temp, x=0, y=0, w=new_w, h=new_h)
+            os.remove(temp)
+        pdf.output(output_path, "F")
+        print(f"📄 PDF saved → {output_path}")
+    except Exception as e:
+        print(f"[!] PDF 생성 실패: {e}")
+
+def main():
+    driver = setup_driver()
+    captured = []
+    for name, url in SITES.items():
+        try:
+            result = capture_full_page(driver, name, url)
+            if result:
+                captured.append(result)
+        except Exception as e:
+            print(f"[!] {name} 실패: {e}")
+    driver.quit()
+
+    if captured:
+        pdf_path = os.path.join(SAVE_DIR, f"music_sites_{timestamp}.pdf")
+        merge_to_pdf(captured, pdf_path)
+        print("🧹 PNG 삭제 완료")
+    else:
+        print("[!] 캡처된 이미지 없음. PDF 생성 생략")
+
+if __name__ == "__main__":
+    main()
