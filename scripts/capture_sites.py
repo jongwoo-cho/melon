@@ -41,24 +41,27 @@ def setup_driver():
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     return driver
 
+def dismiss_alerts(driver):
+    """브라우저 alert, confirm, prompt 모두 닫기"""
+    try:
+        while True:
+            alert = driver.switch_to.alert
+            alert.dismiss()  # 취소 클릭
+            time.sleep(0.5)
+    except:
+        pass
+
 def remove_popups(driver):
     """모든 팝업 제거: 일반 + iframe + Shadow DOM"""
     js = """
     function hideAll(doc){
         try{
-            // 일반 팝업
             doc.querySelectorAll('.popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer').forEach(e=>e.style.display='none');
-            
-            // Shadow DOM 내부
             doc.querySelectorAll('*').forEach(el=>{
                 if(el.shadowRoot) hideAll(el.shadowRoot);
             });
-
-            // iframe 내부
             doc.querySelectorAll('iframe').forEach(f=>{
-                try{ 
-                    if(f.contentDocument) hideAll(f.contentDocument); 
-                } catch(e){}
+                try{ if(f.contentDocument) hideAll(f.contentDocument); } catch(e){}
             });
         }catch(e){}
     }
@@ -86,9 +89,11 @@ def capture_full_page(driver, name, url):
     driver.get(url)
     time.sleep(3)
 
+    dismiss_alerts(driver)
     remove_popups(driver)
     click_close_buttons(driver)
     time.sleep(1)
+    dismiss_alerts(driver)
     remove_popups(driver)
 
     # 전체 페이지 스크롤 캡처
@@ -101,6 +106,7 @@ def capture_full_page(driver, name, url):
     while scroll_position < total_height:
         driver.execute_script(f"window.scrollTo(0, {scroll_position});")
         time.sleep(1.5)
+        dismiss_alerts(driver)
         remove_popups(driver)
         click_close_buttons(driver)
         path = os.path.join(SAVE_DIR, f"{name}_part{part}.png")
