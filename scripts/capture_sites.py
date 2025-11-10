@@ -24,7 +24,7 @@ SITES = {
 
 def setup_driver():
     options = Options()
-    # GUI 모드 (headless 제거)
+    # headless 제거 → 전체화면 렌더링
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
@@ -38,29 +38,35 @@ def setup_driver():
     return driver
 
 def remove_popups(driver):
-    """공통 팝업 제거 및 반복 제거"""
+    """팝업 제거: iframe, 레이어, modal, dimmed, dialog 등 + 동적 반복"""
     js_code = """
-    function removeAllPopups() {
-        const els = document.querySelectorAll(
+    function removeAllPopups(doc) {
+        const els = doc.querySelectorAll(
             'iframe, .popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer'
         );
         els.forEach(e => e.remove());
+
+        const iframes = doc.querySelectorAll('iframe');
+        iframes.forEach(f => {
+            try {
+                if(f.contentDocument) removeAllPopups(f.contentDocument);
+            } catch(e) {}
+        });
     }
-    removeAllPopups();
-    setTimeout(removeAllPopups, 1000);
-    setTimeout(removeAllPopups, 2000);
+    removeAllPopups(document);
+    setTimeout(() => removeAllPopups(document), 1000);
+    setTimeout(() => removeAllPopups(document), 2000);
+    setTimeout(() => removeAllPopups(document), 3000);
     """
     try:
         driver.execute_script(js_code)
-    except:
-        pass
+    except Exception as e:
+        print(f"[!] Pop-up removal error: {e}")
 
 def capture_full_page_scroll(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
     time.sleep(3)
-    remove_popups(driver)
-    time.sleep(1)
     remove_popups(driver)
     time.sleep(1)
 
@@ -72,11 +78,12 @@ def capture_full_page_scroll(driver, name, url):
 
     while scroll_position < total_height:
         driver.execute_script(f"window.scrollTo(0, {scroll_position});")
-        time.sleep(1.5)
+        time.sleep(1)
+        remove_popups(driver)  # 스크롤 중에도 팝업 제거
         path = os.path.join(SAVE_DIR, f"{name}_part{part}.png")
         driver.save_screenshot(path)
         screenshots.append(path)
-        scroll_position += viewport_height - 200  # 약간의 overlap
+        scroll_position += viewport_height - 200  # overlap
         part += 1
         total_height = driver.execute_script("return document.body.scrollHeight")
         if scroll_position >= total_height:
@@ -85,8 +92,8 @@ def capture_full_page_scroll(driver, name, url):
     # 이미지 병합
     images = [Image.open(p) for p in screenshots]
     widths, heights = zip(*(i.size for i in images))
-    total_height = sum(heights) - (len(images) - 1) * 200
-    merged = Image.new("RGB", (widths[0], total_height))
+    merged_height = sum(heights) - (len(images)-1)*200
+    merged = Image.new("RGB", (widths[0], merged_height))
     y = 0
     for i, img in enumerate(images):
         if i > 0:
