@@ -5,16 +5,16 @@ import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 from fpdf import FPDF
 
-# 저장 폴더
 SAVE_DIR = "screenshots"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# 시간 설정 (KST)
+# KST 기준 timestamp
 kst = pytz.timezone("Asia/Seoul")
 timestamp = datetime.now(kst).strftime("%y%m%d_%H%M")
 
@@ -32,44 +32,59 @@ def setup_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-infobars")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("--lang=ko-KR")
+    options.add_argument("--lang=ko-KR")  # 지니 한글 깨짐 방지
     options.add_argument("--disable-gpu")
+    # 팝업/알림 차단
+    prefs = {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_setting_values.popups": 2
+    }
+    options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     return driver
 
-def remove_popups(driver, site_name):
+def remove_popup(driver, site_name):
+    """사이트별 팝업 제거"""
     try:
         if site_name == "melon":
-            # 멜론 팝업 제거
+            # 예전 멜론 방식 복원
             driver.execute_script("""
-                document.querySelectorAll('.layer_popup, .d_popup').forEach(e => e.remove());
+                const pop = document.querySelector('#d_pop');
+                if(pop) { pop.remove(); }
             """)
         elif site_name == "genie":
             # 지니 팝업 제거
             driver.execute_script("""
-                document.querySelectorAll('.popup_wrap, .modal').forEach(e => e.remove());
-            """)
-        elif site_name == "bugs":
-            # 벅스 팝업 제거
-            driver.execute_script("""
-                document.querySelectorAll('.popup, .layer').forEach(e => e.remove());
+                const pop = document.querySelector('.popup-wrap');
+                if(pop) { pop.remove(); }
             """)
         elif site_name == "flo":
-            # 플로 팝업 제거
+            # FLO 팝업 제거
             driver.execute_script("""
-                document.querySelectorAll('.popupLayer, .modal').forEach(e => e.remove());
+                const pop = document.querySelector('.modal-container');
+                if(pop) { pop.remove(); }
             """)
-        time.sleep(1)
-    except WebDriverException as e:
+    except Exception as e:
         print(f"[!] {site_name} 팝업 제거 실패: {e}")
 
 def capture_full_page(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
     time.sleep(3)
+    remove_popup(driver, name)
+    time.sleep(1)
 
-    remove_popups(driver, name)
+    if name == "flo":
+        # 오늘 발매 음악 10개 이상 보이도록 스크롤
+        try:
+            content_area = driver.find_element(By.CSS_SELECTOR, "section[data-testid='newReleaseTodaySection']")
+            for _ in range(10):
+                driver.execute_script("arguments[0].scrollTop += 300;", content_area)
+                time.sleep(0.5)
+        except NoSuchElementException:
+            pass
 
+    # 전체 페이지 스크롤 캡처
     total_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
     screenshots = []
@@ -92,7 +107,7 @@ def capture_full_page(driver, name, url):
     try:
         images = [Image.open(p) for p in screenshots if os.path.exists(p)]
         if not images:
-            print(f"[!] {name} 스크린샷이 존재하지 않아 PDF를 생성할 수 없습니다.")
+            print(f"[!] {name} 스크린샷이 존재하지 않아 PDF 생성 불가")
             return None
         widths, heights = zip(*(i.size for i in images))
         merged_height = sum(heights) - (len(images)-1)*200
