@@ -6,7 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.common.exceptions import WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 from fpdf import FPDF
@@ -39,24 +39,24 @@ def setup_driver():
     return driver
 
 def remove_popups(driver):
-    """iframe + Shadow DOM + 동적 팝업까지 제거"""
-    js_code = """
-    function hideAllPopups(doc) {
-        doc.querySelectorAll('.popup, .layer_popup, .modal, .dimmed, [role="dialog"]').forEach(e => e.remove());
-        doc.querySelectorAll('*').forEach(el => {
-            if(el.shadowRoot) hideAllPopups(el.shadowRoot);
-        });
-        doc.querySelectorAll('iframe').forEach(f => {
-            try { if(f.contentDocument) hideAllPopups(f.contentDocument); } catch(e) {}
-        });
+    """팝업 제거: iframe + Shadow DOM + 반복"""
+    js = """
+    function hideAll(doc){
+        try{
+            doc.querySelectorAll('.popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer').forEach(e=>e.style.display='none');
+            doc.querySelectorAll('*').forEach(el=>{
+                if(el.shadowRoot) hideAll(el.shadowRoot);
+            });
+            doc.querySelectorAll('iframe').forEach(f=>{
+                try{ if(f.contentDocument) hideAll(f.contentDocument); } catch(e){}
+            });
+        }catch(e){}
     }
-    hideAllPopups(document);
-    setTimeout(() => hideAllPopups(document), 1000);
-    setTimeout(() => hideAllPopups(document), 2000);
-    setTimeout(() => hideAllPopups(document), 3000);
+    hideAll(document);
+    setInterval(()=>hideAll(document), 1000);
     """
     try:
-        driver.execute_script(js_code)
+        driver.execute_script(js)
     except WebDriverException:
         pass
 
@@ -71,7 +71,7 @@ def click_close_buttons(driver):
         except:
             continue
 
-def capture_full_page_scroll(driver, name, url):
+def capture_full_page(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
     time.sleep(3)
@@ -108,12 +108,10 @@ def capture_full_page_scroll(driver, name, url):
     merged = Image.new("RGB", (widths[0], merged_height))
     y = 0
     for i, img in enumerate(images):
-        if i > 0:
-            y -= 200
+        if i > 0: y -= 200
         merged.paste(img, (0, y))
         y += img.height
-    for p in screenshots:
-        os.remove(p)
+    for p in screenshots: os.remove(p)
 
     out_path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
     merged.save(out_path)
@@ -128,7 +126,7 @@ def merge_to_pdf(images, output_path):
         ratio = min(210 / (w * 0.2645), 297 / (h * 0.2645))
         new_w, new_h = w * 0.2645 * ratio, h * 0.2645 * ratio
         pdf.add_page()
-        temp = img_path.replace(".png", "_temp.jpg")
+        temp = img_path.replace(".png","_temp.jpg")
         img.convert("RGB").save(temp)
         pdf.image(temp, x=0, y=0, w=new_w, h=new_h)
         os.remove(temp)
@@ -140,7 +138,7 @@ def main():
     captured = []
     for name, url in SITES.items():
         try:
-            captured.append(capture_full_page_scroll(driver, name, url))
+            captured.append(capture_full_page(driver, name, url))
         except Exception as e:
             print(f"[!] {name} failed: {e}")
     driver.quit()
@@ -148,8 +146,7 @@ def main():
     if captured:
         pdf_path = os.path.join(SAVE_DIR, f"music_sites_{timestamp}.pdf")
         merge_to_pdf(captured, pdf_path)
-        for f in captured:
-            os.remove(f)
+        for f in captured: os.remove(f)
         print("🧹 PNGs deleted")
 
 if __name__ == "__main__":
