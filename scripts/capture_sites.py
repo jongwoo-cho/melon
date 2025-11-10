@@ -130,24 +130,4 @@ def merge_to_pdf(images, output_path):
         img.convert("RGB").save(temp)
         pdf.image(temp, x=0, y=0, w=new_w, h=new_h)
         os.remove(temp)
-    pdf.output(output_path, "F")
-    print(f"📄 PDF saved → {output_path}")
-
-def main():
-    driver = setup_driver()
-    captured = []
-    for name, url in SITES.items():
-        try:
-            captured.append(capture_full_page(driver, name, url))
-        except Exception as e:
-            print(f"[!] {name} failed: {e}")
-    driver.quit()
-
-    if captured:
-        pdf_path = os.path.join(SAVE_DIR, f"music_sites_{timestamp}.pdf")
-        merge_to_pdf(captured, pdf_path)
-        for f in captured: os.remove(f)
-        print("🧹 PNGs deleted")
-
-if __name__ == "__main__":
-    main()
+    pdf.outpu
