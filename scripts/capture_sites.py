@@ -5,6 +5,8 @@ import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 from fpdf import FPDF
@@ -24,7 +26,6 @@ SITES = {
 
 def setup_driver():
     options = Options()
-    # headless 제거 → 전체화면 렌더링
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-notifications")
@@ -38,37 +39,47 @@ def setup_driver():
     return driver
 
 def remove_popups(driver):
-    """팝업 제거: iframe, 레이어, modal, dimmed, dialog 등 + 동적 반복"""
+    """iframe + Shadow DOM + 동적 팝업까지 제거"""
     js_code = """
-    function removeAllPopups(doc) {
-        const els = doc.querySelectorAll(
-            'iframe, .popup, .layer_popup, .modal, .dimmed, [role="dialog"], #popLayer'
-        );
-        els.forEach(e => e.remove());
-
-        const iframes = doc.querySelectorAll('iframe');
-        iframes.forEach(f => {
-            try {
-                if(f.contentDocument) removeAllPopups(f.contentDocument);
-            } catch(e) {}
+    function hideAllPopups(doc) {
+        doc.querySelectorAll('.popup, .layer_popup, .modal, .dimmed, [role="dialog"]').forEach(e => e.remove());
+        doc.querySelectorAll('*').forEach(el => {
+            if(el.shadowRoot) hideAllPopups(el.shadowRoot);
+        });
+        doc.querySelectorAll('iframe').forEach(f => {
+            try { if(f.contentDocument) hideAllPopups(f.contentDocument); } catch(e) {}
         });
     }
-    removeAllPopups(document);
-    setTimeout(() => removeAllPopups(document), 1000);
-    setTimeout(() => removeAllPopups(document), 2000);
-    setTimeout(() => removeAllPopups(document), 3000);
+    hideAllPopups(document);
+    setTimeout(() => hideAllPopups(document), 1000);
+    setTimeout(() => hideAllPopups(document), 2000);
+    setTimeout(() => hideAllPopups(document), 3000);
     """
     try:
         driver.execute_script(js_code)
-    except Exception as e:
-        print(f"[!] Pop-up removal error: {e}")
+    except WebDriverException:
+        pass
+
+def click_close_buttons(driver):
+    """닫기 버튼이 있으면 클릭"""
+    selectors = ['.popup-close', '.layer-close', '.btn_close', '.btn-close', '[aria-label="닫기"]']
+    for sel in selectors:
+        try:
+            elems = driver.find_elements(By.CSS_SELECTOR, sel)
+            for e in elems:
+                e.click()
+        except:
+            continue
 
 def capture_full_page_scroll(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
     time.sleep(3)
+
     remove_popups(driver)
+    click_close_buttons(driver)
     time.sleep(1)
+    remove_popups(driver)
 
     total_height = driver.execute_script("return document.body.scrollHeight")
     viewport_height = driver.execute_script("return window.innerHeight")
@@ -78,12 +89,13 @@ def capture_full_page_scroll(driver, name, url):
 
     while scroll_position < total_height:
         driver.execute_script(f"window.scrollTo(0, {scroll_position});")
-        time.sleep(1)
-        remove_popups(driver)  # 스크롤 중에도 팝업 제거
+        time.sleep(1.5)
+        remove_popups(driver)
+        click_close_buttons(driver)
         path = os.path.join(SAVE_DIR, f"{name}_part{part}.png")
         driver.save_screenshot(path)
         screenshots.append(path)
-        scroll_position += viewport_height - 200  # overlap
+        scroll_position += viewport_height - 200
         part += 1
         total_height = driver.execute_script("return document.body.scrollHeight")
         if scroll_position >= total_height:
