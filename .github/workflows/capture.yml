@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: '5 9 * * *'   # 매일 오후 6:05 KST (UTC 09:05)
+    - cron: '5 9 * * *'   # 매일 오후 6:05 KST
   workflow_dispatch:
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Chrome and Xvfb
+      - name: Install Chrome, Xvfb, Korean fonts
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable xvfb fonts-nanum
@@ -30,7 +30,7 @@ jobs:
         run: |
           pip install selenium webdriver-manager fpdf pytz pillow
 
-      - name: Run capture script (with virtual display)
+      - name: Run capture script
         env:
           DISPLAY: :99
         run: |
