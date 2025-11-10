@@ -1,118 +1,120 @@
 import os
 import time
-import pytz
 from datetime import datetime
+import pytz
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+from fpdf import FPDF
+from PIL import Image
 
-# === 브라우저 설정 ===
-def get_driver():
+# 스크린샷 저장 폴더
+SAVE_DIR = "screenshots"
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+# KST 기준 시각
+kst = pytz.timezone("Asia/Seoul")
+now = datetime.now(kst)
+timestamp = now.strftime("%y%m%d_%H%M")
+
+# 캡처 대상 사이트
+SITES = {
+    "melon": "https://www.melon.com/",
+    "genie": "https://www.genie.co.kr/",
+    "bugs": "https://music.bugs.co.kr/",
+    "flo": "https://www.music-flo.com/",
+}
+
+def setup_driver():
+    """Chrome 드라이버 설정 (GUI 모드, 팝업 제거 옵션 포함)"""
     options = Options()
-    # headless 제거! (Xvfb로 가상 화면 사용)
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-popup-blocking")
-    options.add_argument("--disable-notifications")
-    options.add_argument("--lang=ko-KR")
     options.add_argument("--start-maximized")
-    options.add_argument("--incognito")
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    driver.set_page_load_timeout(40)
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--disable-infobars")
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     return driver
 
 
-# === 팝업 제거 함수 ===
 def remove_popups(driver):
-    """공통 팝업 제거"""
-    js = """
-    const removeEls = [
-        'iframe', 'div[role="dialog"]', 'div[id*="popup"]', 
-        'div[class*="popup"]', 'div[class*="layer"]', 'div[class*="modal"]',
-        'div[id*="dimmed"]', '#dimmedLayer', '#appLayer'
-    ];
-    removeEls.forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => el.remove());
+    """사이트 공통 팝업 제거 (광고, 알림, 배너 등)"""
+    js_code = """
+    const popups = document.querySelectorAll('div[role="dialog"], iframe, .popup, .layer_popup, .modal, .dimmed');
+    popups.forEach(el => el.remove());
+    const overlays = document.querySelectorAll('*');
+    overlays.forEach(el => {
+        if (getComputedStyle(el).zIndex > 1000) el.remove();
     });
     """
     try:
-        driver.execute_script(js)
+        driver.execute_script(js_code)
     except Exception:
         pass
 
 
-# === 전체 페이지 캡처 ===
-def capture_full_page(name, url):
-    driver = get_driver()
+def capture_site(driver, name, url):
+    """사이트 캡처"""
     print(f"[+] Capturing {name} ...")
+    driver.get(url)
+    time.sleep(5)
+    remove_popups(driver)
+    time.sleep(1)
 
-    try:
-        driver.get(url)
-        time.sleep(5)
+    # 전체 페이지 스크롤 높이 계산
+    full_height = driver.execute_script("return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 1080)")
+    driver.set_window_size(1920, full_height)
+    time.sleep(1)
 
-        # 팝업 제거 반복 시도
-        for _ in range(5):
-            remove_popups(driver)
-            time.sleep(1)
+    # PNG 파일 저장
+    img_path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
+    driver.save_screenshot(img_path)
+    print(f"✅ {name} captured → {img_path}")
+    return img_path
 
-        # 페이지 로딩 대기 (메인 콘텐츠 보이기)
+
+def merge_to_pdf(image_files, output_path):
+    """여러 PNG를 하나의 PDF로 합침"""
+    pdf = FPDF()
+    for img_path in image_files:
+        img = Image.open(img_path)
+        w, h = img.size
+        pdf_w, pdf_h = 210, 297  # A4 기준(mm)
+        ratio = min(pdf_w / w * 96 / 25.4, pdf_h / h * 96 / 25.4)
+        new_w, new_h = w * ratio, h * ratio
+        pdf.add_page()
+        temp_jpg = img_path.replace(".png", "_temp.jpg")
+        img.convert("RGB").save(temp_jpg)
+        pdf.image(temp_jpg, x=0, y=0, w=new_w, h=new_h)
+        os.remove(temp_jpg)
+    pdf.output(output_path, "F")
+    print(f"📄 Combined PDF saved → {output_path}")
+
+
+def main():
+    driver = setup_driver()
+    captured_images = []
+
+    for name, url in SITES.items():
         try:
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-        except Exception:
-            print(f"[!] {name}: main content load timeout")
+            img_path = capture_site(driver, name, url)
+            captured_images.append(img_path)
+        except Exception as e:
+            print(f"[!] {name} capture failed: {e}")
+            continue
 
-        # 페이지 높이 계산 (documentElement 기준)
-        full_height = driver.execute_script("""
-            return Math.max(
-                document.body ? document.body.scrollHeight : 0,
-                document.documentElement ? document.documentElement.scrollHeight : 0,
-                1080
-            );
-        """)
+    driver.quit()
 
-        driver.set_window_size(1920, full_height)
-        time.sleep(2)
+    if captured_images:
+        pdf_path = os.path.join(SAVE_DIR, f"music_sites_{timestamp}.pdf")
+        merge_to_pdf(captured_images, pdf_path)
 
-        # === KST 기준 파일명 생성 ===
-        kst = pytz.timezone("Asia/Seoul")
-        timestamp = datetime.now(kst).strftime("%y%m%d_%H%M")
+        # PNG 파일은 정리
+        for img in captured_images:
+            os.remove(img)
+        print("🧹 Temporary PNGs removed")
 
-        os.makedirs("screenshots", exist_ok=True)
-        screenshot_path = f"screenshots/{name}_{timestamp}.png"
-
-        driver.save_screenshot(screenshot_path)
-        print(f"✅ {name} captured → {screenshot_path}")
-
-    except Exception as e:
-        print(f"[X] {name} capture failed: {e}")
-
-    finally:
-        driver.quit()
-
-
-# === 실행 섹션 ===
 if __name__ == "__main__":
-    sites = {
-        "melon": "https://www.melon.com/chart/index.htm",
-        "genie": "https://www.genie.co.kr/chart/top200",
-        "bugs": "https://music.bugs.co.kr/chart",
-        "flo": "https://www.music-flo.com/",
-    }
-
-    for name, url in sites.items():
-        capture_full_page(name, url)
+    main()
