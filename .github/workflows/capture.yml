@@ -1,22 +1,26 @@
-name: Capture Music Sites
+name: Music Sites Daily Capture
+
+permissions:
+  contents: write
 
 on:
   schedule:
-    # 한국 시간 12:30, 18:30 (UTC 03:30, 09:30)
-    - cron: "30 3,9 * * *"
+    - cron: '30 3 * * *'   # 한국시간 12:30
+    - cron: '30 9 * * *'   # 한국시간 18:30
   workflow_dispatch:
 
 jobs:
   capture:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -24,15 +28,21 @@ jobs:
 
       - name: Start virtual display
         run: Xvfb :99 -screen 0 1920x1080x24 &
-        continue-on-error: true
+        env:
+          DISPLAY: :99
 
       - name: Run capture script
         env:
           DISPLAY: :99
         run: python scripts/capture_sites.py
 
-      - name: Upload captures
-        uses: actions/upload-artifact@v4
-        with:
-          name: captures
-          path: screenshots/
+      - name: Commit and push captures
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add screenshots/*.png screenshots/*.pdf
+          git commit -m "Auto capture $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
+          git pull origin main --rebase
+          git push origin HEAD:main
