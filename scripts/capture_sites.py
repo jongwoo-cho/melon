@@ -1,28 +1,34 @@
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from PIL import Image
 from fpdf import FPDF
 
-SAVE_DIR = "screenshots"
+# -----------------------------
+# 저장 경로 설정
+# -----------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SAVE_DIR = os.path.join(BASE_DIR, "../screenshots")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
+# -----------------------------
+# 사이트 목록
+# -----------------------------
 SITES = {
     "melon": "https://www.melon.com/",
     "genie": "https://www.genie.co.kr/",
     "flo": "https://www.music-flo.com/",
 }
 
+# -----------------------------
+# 드라이버 초기 설정
+# -----------------------------
 def setup_driver():
     options = Options()
     options.add_argument("--headless=new")
@@ -37,25 +43,27 @@ def setup_driver():
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
+# -----------------------------
+# 팝업 제거 함수
+# -----------------------------
 def brutal_popup_remover(driver):
     js = """
-        // 멜론 팝업
-        const melonPop = document.querySelector('#d_pop, #popNotice, #gnb_menu_wrap');
+        // 멜론 팝업 제거
+        const melonPop = document.querySelector('#d_pop, #popNotice, #gnb_menu_wrap, #autoplay_layer');
         if (melonPop) melonPop.remove();
 
-        // 지니 팝업
-        const geniePop = document.querySelector('.popup-wrap, .layer-popup, #popup');
+        // 지니 팝업 제거
+        const geniePop = document.querySelector('.popup-wrap, .layer-popup, #popup, .dimmed, .modal');
         if (geniePop) geniePop.remove();
 
-        // FLO 팝업
+        // FLO 팝업 제거
         const floPop = document.querySelector('.modal-container, .popup, .MuiDialog-root');
         if (floPop) floPop.remove();
 
-        // 오버레이 및 모달 전부 제거
-        const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"], [id*="popup"], [role="dialog"]');
+        // 오버레이 및 광고 전부 제거
+        const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"], [id*="popup"], [role="dialog"], [class*="ad"]');
         overlays.forEach(el => el.remove());
 
-        // 스크롤 및 가시성 방해 제거
         document.body.style.overflow = 'auto';
         document.body.style.position = 'relative';
     """
@@ -71,6 +79,9 @@ def brutal_popup_remover(driver):
     except Exception as e:
         print(f"[!] popup 제거 실패: {e}")
 
+# -----------------------------
+# 사이트별 캡처
+# -----------------------------
 def capture_full_page(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
@@ -78,7 +89,7 @@ def capture_full_page(driver, name, url):
     brutal_popup_remover(driver)
     time.sleep(1.5)
 
-    # FLO의 경우 오늘 발매 음악 보이도록 스크롤
+    # FLO의 경우 오늘 발매 음악 스크롤
     if name == "flo":
         try:
             target = driver.find_element(By.CSS_SELECTOR, "section[data-testid='newReleaseTodaySection']")
@@ -88,16 +99,20 @@ def capture_full_page(driver, name, url):
         except Exception:
             pass
 
-    # 전체 높이 계산 후 캡처
+    # 전체 페이지 높이 계산
     full_height = driver.execute_script("return document.body.scrollHeight")
     driver.set_window_size(1920, full_height)
-    time.sleep(2)
+    time.sleep(1)
+
     timestamp = datetime.now(pytz.timezone("Asia/Seoul")).strftime("%y%m%d_%H%M")
     path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
     driver.save_screenshot(path)
     print(f"✅ {name} captured → {path}")
     return path
 
+# -----------------------------
+# PNG → PDF 병합
+# -----------------------------
 def merge_to_pdf(images, output_path):
     pdf = FPDF()
     for img in images:
@@ -115,6 +130,9 @@ def merge_to_pdf(images, output_path):
     pdf.output(output_path, "F")
     print(f"📄 PDF saved → {output_path}")
 
+# -----------------------------
+# 메인 실행
+# -----------------------------
 def main():
     driver = setup_driver()
     captured = []
