@@ -2,7 +2,7 @@ name: Capture Music Sites
 
 on:
   schedule:
-    # 매일 한국시간 12:30, 18:30 실행
+    # 한국 시간 12:30, 18:30 (UTC 03:30, 09:30)
     - cron: "30 3,9 * * *"
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
           DISPLAY: :99
         run: python scripts/capture_sites.py
 
-      - name: Upload screenshots & PDF
+      - name: Upload captures
         uses: actions/upload-artifact@v4
         with:
           name: captures
