@@ -1,49 +1,39 @@
-name: Music Sites Full Capture
-
-permissions:
-  contents: write
+name: Capture Music Sites
 
 on:
   schedule:
-    - cron: '5 9 * * *'   # 매일 오후 6:05 KST
+    # 매일 한국 시간 12:30, 18:30
+    - cron: "30 3,9 * * *"
   workflow_dispatch:
 
 jobs:
   capture:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install Chrome, Xvfb, Korean fonts
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable xvfb fonts-nanum
+          pip install selenium webdriver-manager pillow fpdf pytz
 
-      - name: Install Python dependencies
-        run: |
-          pip install selenium webdriver-manager fpdf pytz pillow
+      - name: Start virtual display
+        run: Xvfb :99 -screen 0 1920x1080x24 &
+        continue-on-error: true
 
       - name: Run capture script
         env:
           DISPLAY: :99
         run: |
-          Xvfb :99 -screen 0 1920x1080x24 &
           python scripts/capture_sites.py
 
-      - name: Commit and push PDF
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add screenshots/*.pdf
-          git commit -m "Update music sites PDF $(date '+%Y-%m-%d %H:%M')" || echo "No changes to commit"
-          git pull origin main --rebase
-          git push origin HEAD:main
+      - name: Upload screenshots & PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures
+          path: screenshots/
