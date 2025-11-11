@@ -1,12 +1,9 @@
-name: Music Sites Daily Capture
-
-permissions:
-  contents: write
+# .github/workflows/capture.yml
+name: Capture Music Sites
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # 한국시간 12:30
-    - cron: '30 9 * * *'   # 한국시간 18:30
+    - cron: '30 3,9 * * *'   # 한국시간 12:30, 18:30
   workflow_dispatch:
 
 jobs:
@@ -24,9 +21,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager pillow fpdf pytz
+          pip install selenium fpdf2 webdriver-manager pytz
 
-      - name: Start virtual display
+      - name: Start virtual display (for Chrome GUI)
         run: Xvfb :99 -screen 0 1920x1080x24 &
         env:
           DISPLAY: :99
@@ -36,13 +33,10 @@ jobs:
           DISPLAY: :99
         run: python scripts/capture_sites.py
 
-      - name: Commit and push captures
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit and push PDF
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add screenshots/*.png screenshots/*.pdf
-          git commit -m "Auto capture $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
-          git pull origin main --rebase
-          git push origin HEAD:main
+          git add screenshots/*.pdf || echo "No PDF found"
+          git commit -m "📸 Auto capture at $(date +'%Y-%m-%d %H:%M')" || echo "Nothing to commit"
+          git push
