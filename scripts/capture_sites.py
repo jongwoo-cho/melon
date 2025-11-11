@@ -11,15 +11,12 @@ from PIL import Image
 from fpdf import FPDF
 
 # -----------------------------
-# 저장 경로
+# 절대경로 screenshots 폴더 설정
 # -----------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SAVE_DIR = os.path.join(BASE_DIR, "../screenshots")
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SAVE_DIR = os.path.join(ROOT_DIR, "screenshots")
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-# -----------------------------
-# 사이트 목록
-# -----------------------------
 SITES = {
     "melon": "https://www.melon.com/",
     "genie": "https://www.genie.co.kr/",
@@ -32,7 +29,6 @@ SITES = {
 # -----------------------------
 def setup_driver():
     options = Options()
-    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-popup-blocking")
@@ -40,25 +36,24 @@ def setup_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--lang=ko-KR")
     options.add_argument("--window-size=1920,1080")
+    # options.add_argument("--headless=new")  # 필요시 주석 해제
     service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
+    return webdriver.Chrome(service=service, options=options)
 
 # -----------------------------
-# 팝업 제거 (공통)
+# 팝업 제거
 # -----------------------------
 def remove_popups(driver):
     js = """
         const selectors = [
-            '#d_pop', '#popNotice', '#autoplay_layer',
-            '.layer-popup', '.popup', '.modal', '.overlay', '.dimmed',
-            '.modal-container', '.popup-wrap', '#popup', '.MuiDialog-root'
+            '#d_pop', '#popNotice', '#autoplay_layer', '.layer-popup',
+            '.popup', '.modal', '.overlay', '.dimmed', '.popup-wrap',
+            '.modal-container', '#popup', '.MuiDialog-root'
         ];
         selectors.forEach(sel => {
             document.querySelectorAll(sel).forEach(e => e.remove());
         });
         document.body.style.overflow = 'auto';
-        document.body.style.position = 'relative';
     """
     try:
         driver.execute_script(js)
@@ -77,36 +72,34 @@ def remove_popups(driver):
 def capture_site(driver, name, url):
     print(f"[+] Capturing {name} ...")
     driver.get(url)
-    time.sleep(4)
+    time.sleep(5)
     remove_popups(driver)
 
-    # FLO: 오늘 발매 음악 10개 영역 스크롤
     if name == "flo":
         try:
             section = driver.find_element(By.CSS_SELECTOR, "section[data-testid='newReleaseTodaySection']")
-            for _ in range(6):
+            for _ in range(8):
                 driver.execute_script("arguments[0].scrollTop += 400;", section)
                 time.sleep(0.3)
         except:
             pass
 
-    # 전체 높이 계산 후 스크린샷
     full_height = driver.execute_script("return document.body.scrollHeight")
     driver.set_window_size(1920, full_height)
     time.sleep(1)
 
     timestamp = datetime.now(pytz.timezone("Asia/Seoul")).strftime("%y%m%d_%H%M")
-    path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
-    driver.save_screenshot(path)
-    print(f"✅ {name} captured → {path}")
-    return path
+    img_path = os.path.join(SAVE_DIR, f"{name}_{timestamp}.png")
+    driver.save_screenshot(img_path)
+    print(f"✅ {name} captured → {img_path}")
+    return img_path
 
 # -----------------------------
-# PNG → PDF 변환
+# PNG → PDF
 # -----------------------------
-def make_pdf(image_list):
+def make_pdf(image_paths):
     pdf = FPDF()
-    for img in image_list:
+    for img in image_paths:
         if not os.path.exists(img):
             continue
         im = Image.open(img)
@@ -118,13 +111,14 @@ def make_pdf(image_list):
         im.convert("RGB").save(temp_jpg)
         pdf.image(temp_jpg, x=0, y=0, w=new_w, h=new_h)
         os.remove(temp_jpg)
+
     timestamp = datetime.now(pytz.timezone("Asia/Seoul")).strftime("%y%m%d_%H%M")
     pdf_path = os.path.join(SAVE_DIR, f"music_sites_{timestamp}.pdf")
     pdf.output(pdf_path, "F")
     print(f"📄 PDF saved → {pdf_path}")
 
 # -----------------------------
-# 메인 실행
+# 실행
 # -----------------------------
 def main():
     driver = setup_driver()
