@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # KST 12:30
-    - cron: '30 9 * * *'   # KST 18:30
+    - cron: '30 3 * * *'  # 12:30 KST
+    - cron: '30 9 * * *'  # 18:30 KST
   workflow_dispatch:
 
 jobs:
@@ -25,17 +25,23 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb google-chrome-stable
+          sudo apt-get install -y google-chrome-stable xvfb fonts-nanum
           pip install selenium webdriver-manager fpdf2 pytz pillow
 
       - name: Start virtual display
         run: |
           Xvfb :99 -screen 0 1920x1080x24 &
-        env:
-          DISPLAY: :99
+          export DISPLAY=:99
 
       - name: Run capture script
+        run: python scripts/capture_sites.py
+
+      - name: Commit and push PDF
         env:
-          DISPLAY: :99
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python scripts/capture_sites.py
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add screenshots/*.pdf
+          git commit -m "📸 Auto capture at $(date '+%Y-%m-%d %H:%M')" || echo "No PDF changes"
+          git push origin HEAD:main
