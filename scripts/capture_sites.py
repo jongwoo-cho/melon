@@ -51,7 +51,7 @@ def capture_site(name, url):
     # 팝업 제거
     try:
         if name == "bugs":
-            # 벅스 팝업 CSS 강제 숨김
+            # 벅스 팝업 제거 강화
             driver.execute_script("""
                 let style = document.createElement('style');
                 style.innerHTML = `
@@ -63,26 +63,20 @@ def capture_site(name, url):
                     }
                 `;
                 document.head.appendChild(style);
-
-                let iframes = document.querySelectorAll('iframe');
-                iframes.forEach(iframe => {
-                    try {
-                        let doc = iframe.contentDocument || iframe.contentWindow.document;
-                        let innerStyle = doc.createElement('style');
-                        innerStyle.innerHTML = `
-                            .popup, .dimmed, .overlay, .modal, .layer_popup {
-                                display: none !important;
-                                visibility: hidden !important;
-                                opacity: 0 !important;
-                                z-index: 0 !important;
-                            }
-                        `;
-                        doc.head.appendChild(innerStyle);
-                    } catch(e) {}
-                });
             """)
+            # iframe 내부 팝업 제거
+            iframes = driver.find_elements("tag name", "iframe")
+            for iframe in iframes:
+                try:
+                    driver.switch_to.frame(iframe)
+                    driver.execute_script("""
+                        let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
+                        elems.forEach(e => e.remove());
+                    """)
+                    driver.switch_to.default_content()
+                except:
+                    driver.switch_to.default_content()
         else:
-            # 나머지 사이트는 기존 방식 유지
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
                 elems.forEach(e => e.remove());
@@ -91,7 +85,6 @@ def capture_site(name, url):
         print(f"[!] Popup removal failed for {name}: {e}")
 
     time.sleep(1)
-
     screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
     driver.save_screenshot(screenshot_path)
     captured_files.append(screenshot_path)
