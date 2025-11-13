@@ -31,15 +31,15 @@ with sync_playwright() as p:
         page.goto(url)
         page.wait_for_timeout(7000)  # 페이지 렌더 대기
 
-        # 섹션별 컨텐츠 추출
+        # 영역별로 노출된 컨텐츠 추출
         sections = ["New", "Latest Song", "New Releases", "Trending Songs"]
         for section_name in sections:
             try:
+                # 섹션 찾기
                 section = page.locator(f"h2:text('{section_name}')").locator("..")
                 items = section.locator("li")
                 
-                count = items.count()
-                for i in range(count):
+                for i in range(items.count()):
                     try:
                         album_name = items.nth(i).locator("h3").inner_text()
                     except:
