@@ -1,8 +1,8 @@
-name: Daily iTunes Capture & Spreadsheet
+name: Daily Apple Music Sections
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # UTC 기준 매일 0시 실행
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -24,12 +24,12 @@ jobs:
           pip install playwright pandas openpyxl
           playwright install chromium
 
-      - name: Run capture script
+      - name: Run HTML extraction script
         run: |
-          python scripts/capture_itunes.py
+          python scripts/capture_apple_music_sections_diff.py
 
-      - name: Upload Captures
+      - name: Upload Excel
         uses: actions/upload-artifact@v4
         with:
-          name: iTunes-Daily
+          name: AppleMusic-Sections-Data
           path: captures/
