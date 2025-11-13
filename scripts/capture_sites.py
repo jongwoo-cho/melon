@@ -51,31 +51,38 @@ def capture_site(name, url):
     # 팝업 제거
     try:
         if name == "bugs":
-            # 벅스 팝업 제거 강화 (iframe 포함)
+            # 벅스 팝업 CSS 강제 숨김
             driver.execute_script("""
-                // iframe 안팝업 제거
+                let style = document.createElement('style');
+                style.innerHTML = `
+                    .popup, .dimmed, .overlay, .modal, .layer_popup {
+                        display: none !important;
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        z-index: 0 !important;
+                    }
+                `;
+                document.head.appendChild(style);
+
                 let iframes = document.querySelectorAll('iframe');
                 iframes.forEach(iframe => {
                     try {
                         let doc = iframe.contentDocument || iframe.contentWindow.document;
-                        let popups = doc.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
-                        popups.forEach(p => p.remove());
+                        let innerStyle = doc.createElement('style');
+                        innerStyle.innerHTML = `
+                            .popup, .dimmed, .overlay, .modal, .layer_popup {
+                                display: none !important;
+                                visibility: hidden !important;
+                                opacity: 0 !important;
+                                z-index: 0 !important;
+                            }
+                        `;
+                        doc.head.appendChild(innerStyle);
                     } catch(e) {}
                 });
-
-                // DOM 팝업 제거
-                let selectors = ['.popup', '#popup', '.dimmed', '.overlay', '.modal', '.layer_popup'];
-                selectors.forEach(sel => {
-                    document.querySelectorAll(sel).forEach(e => e.remove());
-                });
-
-                // alert/confirm/prompt 차단
-                window.alert = function() {};
-                window.confirm = function() { return true; };
-                window.prompt = function() { return null; };
             """)
         else:
-            # 다른 사이트는 기존 팝업 제거
+            # 나머지 사이트는 기존 방식 유지
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
                 elems.forEach(e => e.remove());
