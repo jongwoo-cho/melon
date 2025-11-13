@@ -1,98 +1,117 @@
 import os
 import time
 from datetime import datetime
-import pytz
-import glob
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-from fpdf import FPDF
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from PIL import Image
 
-# --- 폴더 생성
+# -----------------------------
+# 환경 설정
+# -----------------------------
 os.makedirs("screenshots", exist_ok=True)
 
-# --- 타임스탬프
-kst = pytz.timezone("Asia/Seoul")
-timestamp = datetime.now(kst).strftime("%y%m%d_%H%M")
-
-# --- Chrome 옵션 (headless 안정 모드)
 chrome_options = Options()
-chrome_options.add_argument("--headless")  # ✅ old headless로 변경
 chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_argument("--disable-gpu")
 chrome_options.add_argument("--disable-notifications")
 chrome_options.add_argument("--disable-popup-blocking")
+chrome_options.add_argument("--start-maximized")
+chrome_options.add_argument("--headless")
 chrome_options.add_argument("--window-size=1920,1080")
-chrome_options.add_argument("--lang=ko-KR")
 chrome_options.add_experimental_option("prefs", {
-    "intl.accept_languages": "ko-KR,ko,en-US"
+    "profile.default_content_setting_values.notifications": 2,
+    "profile.default_content_setting_values.popups": 2,
+    "profile.default_content_setting_values.automatic_downloads": 1
 })
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
-# --- 팝업 제거 스크립트
-def remove_popups():
-    js = """
-    const selectors = [
-      'div[role="dialog"]', '.popup', '#popLayer', '.dimmed',
-      '.ly_popup', '.layer_popup', 'iframe', '#appPopup',
-      '.wrap_popup', '.popup_area', '.modal', '.ad_banner'
-    ];
-    selectors.forEach(sel => document.querySelectorAll(sel).forEach(e => e.remove()));
-    window.alert = () => {};
-    window.confirm = () => true;
-    window.prompt = () => '';
-    """
-    driver.execute_script(js)
-
-# --- 안전한 접속
-def safe_get(url):
+# -----------------------------
+# 캡처 함수
+# -----------------------------
+def capture_site(name, url, scroll=False, click_latest=False):
+    print(f"[+] Capturing {name} ...")
     driver.get(url)
-    time.sleep(4)
-    remove_popups()
+    time.sleep(6)
+
+    # 팝업 제거 시도
+    for script in [
+        "document.querySelectorAll('iframe, .ad, .popup, .layer_popup, .banner, [id*=\"pop\"], [class*=\"pop\"]').forEach(e=>e.remove());",
+        "if(window.confirm) window.confirm=function(){return false;};",
+        "if(window.alert) window.alert=function(){};"
+    ]:
+        driver.execute_script(script)
     time.sleep(1)
 
-# --- 사이트 캡처
-def capture_site(name, url, scroll_target=None):
-    print(f"[+] Capturing {name} ...")
-    safe_get(url)
-    if scroll_target:
+    # 멜론은 상단 최신음악만 캡처
+    if name == "melon":
+        element = driver.find_element(By.CSS_SELECTOR, "#new_album, .new_album, #conts_section, #wrap")
+        element.screenshot(f"screenshots/{name}_{timestamp}.png")
+        print(f"✅ {name} captured")
+        return
+
+    # FLO는 '오늘 발매 음악' 영역
+    if name == "flo":
         try:
-            driver.execute_script(f"document.querySelector('{scroll_target}').scrollIntoView();")
-            time.sleep(2)
-        except Exception as e:
-            print(f"[!] scroll failed for {name}: {e}")
+            section = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]/ancestor::section")
+            section.screenshot(f"screenshots/{name}_{timestamp}.png")
+            print(f"✅ {name} captured")
+            return
+        except Exception:
+            pass
 
-    path = f"screenshots/{name}_{timestamp}.png"
-    driver.save_screenshot(path)
-    print(f"✅ {name} captured → {path}")
+    # 전체 스크롤 캡처 (기본)
+    S = driver.execute_script("return document.body.scrollHeight")
+    driver.set_window_size(1920, S)
+    time.sleep(1)
+    driver.save_screenshot(f"screenshots/{name}_{timestamp}.png")
+    print(f"✅ {name} captured")
 
-# --- 대상 사이트
-sites = [
-    ("melon", "https://www.melon.com/", "div#new_song"),
-    ("genie", "https://www.genie.co.kr/", "div.newest"),
-    ("bugs", "https://music.bugs.co.kr/", "section#newAlbum"),
-    ("flo", "https://www.music-flo.com/", "div.sectionNewRelease")
-]
+# -----------------------------
+# 대상 사이트 목록
+# -----------------------------
+timestamp = datetime.now().strftime("%y%m%d_%H%M")
+sites = {
+    "melon": "https://www.melon.com/new/index.htm",
+    "genie": "https://www.genie.co.kr/newest",
+    "bugs": "https://music.bugs.co.kr/newest/album",
+    "flo": "https://www.music-flo.com/browse/new"
+}
 
-for name, url, target in sites:
-    capture_site(name, url, target)
+for name, url in sites.items():
+    try:
+        capture_site(name, url)
+    except Exception as e:
+        print(f"[!] {name} capture failed: {e}")
 
 driver.quit()
 
-# --- PDF 병합
-pdf = FPDF(unit='mm', format='A4')
-png_files = sorted(glob.glob('screenshots/*.png'))
-if png_files:
-    for img in png_files:
-        pdf.add_page()
-        pdf.image(img, x=0, y=0, w=210)
-    pdf_path = f"screenshots/music_capture_{timestamp}.pdf"
-    pdf.output(pdf_path)
-    print(f"📄 PDF saved → {pdf_path}")
-    for f in png_files:
-        os.remove(f)
-else:
-    print("⚠ No screenshots found.")
+# -----------------------------
+# PDF 생성
+# -----------------------------
+pdf_path = f"screenshots/music_capture_{timestamp}.pdf"
+c = canvas.Canvas(pdf_path, pagesize=A4)
+width, height = A4
+
+for site in sites.keys():
+    img_path = f"screenshots/{site}_{timestamp}.png"
+    if os.path.exists(img_path):
+        img = Image.open(img_path)
+        iw, ih = img.size
+        ratio = min(width / iw, height / ih)
+        c.drawImage(img_path, 0, 0, iw * ratio, ih * ratio)
+        c.showPage()
+
+c.save()
+
+# PNG 삭제 (PDF만 남김)
+for f in os.listdir("screenshots"):
+    if f.endswith(".png"):
+        os.remove(os.path.join("screenshots", f))
+
+print(f"✅ PDF created: {pdf_path}")
