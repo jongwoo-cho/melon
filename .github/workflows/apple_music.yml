@@ -1,4 +1,4 @@
-name: Daily Apple Music Sections
+name: Daily Apple Music Sections Extraction
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  capture:
+  extract:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,5 +31,5 @@ jobs:
       - name: Upload Excel
         uses: actions/upload-artifact@v4
         with:
-          name: AppleMusic-Sections-Data
+          name: AppleMusic-Sections
           path: captures/
