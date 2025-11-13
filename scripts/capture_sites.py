@@ -52,30 +52,23 @@ def capture_site(name, url):
     try:
         if name == "bugs":
             # 벅스 팝업 제거 강화
-            driver.execute_script("""
-                let style = document.createElement('style');
-                style.innerHTML = `
-                    .popup, .dimmed, .overlay, .modal, .layer_popup {
-                        display: none !important;
-                        visibility: hidden !important;
-                        opacity: 0 !important;
-                        z-index: 0 !important;
-                    }
-                `;
-                document.head.appendChild(style);
-            """)
-            # iframe 내부 팝업 제거
-            iframes = driver.find_elements("tag name", "iframe")
-            for iframe in iframes:
-                try:
-                    driver.switch_to.frame(iframe)
-                    driver.execute_script("""
-                        let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
-                        elems.forEach(e => e.remove());
-                    """)
-                    driver.switch_to.default_content()
-                except:
-                    driver.switch_to.default_content()
+            for _ in range(5):
+                driver.execute_script("""
+                    // 일반 팝업, dimmed, overlay, modal
+                    let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
+                    elems.forEach(e => { e.style.display='none'; e.style.visibility='hidden'; e.remove(); });
+
+                    // iframe 안 팝업 제거
+                    let iframes = document.querySelectorAll('iframe');
+                    iframes.forEach(f => {
+                        try {
+                            let doc = f.contentDocument || f.contentWindow.document;
+                            let innerElems = doc.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
+                            innerElems.forEach(ie => { ie.style.display='none'; ie.style.visibility='hidden'; ie.remove(); });
+                        } catch(e) {}
+                    });
+                """)
+                time.sleep(1)
         else:
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
