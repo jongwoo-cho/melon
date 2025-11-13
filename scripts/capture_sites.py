@@ -36,8 +36,46 @@ chrome_options.add_argument("--window-size=1920,1080")
 chrome_options.add_argument("--lang=ko-KR")  # 지니 한글 깨짐 방지
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
 captured_files = []
+
+# 벅스 팝업 제거 강화
+def remove_bugs_popup():
+    try:
+        # 기본 팝업 제거
+        driver.execute_script("""
+            let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
+            elems.forEach(e => { e.style.display='none'; e.style.visibility='hidden'; e.remove(); });
+        """)
+
+        # iframe 내부까지 제거
+        iframes = driver.find_elements("tag name", "iframe")
+        for f in iframes:
+            try:
+                driver.switch_to.frame(f)
+                driver.execute_script("""
+                    let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
+                    elems.forEach(e => { e.style.display='none'; e.style.visibility='hidden'; e.remove(); });
+                """)
+                driver.switch_to.default_content()
+            except:
+                driver.switch_to.default_content()
+
+        # 동적으로 생성되는 팝업 제거
+        driver.execute_script("""
+            const observer = new MutationObserver(mutations => {
+                mutations.forEach(m => {
+                    m.addedNodes.forEach(n => {
+                        if(n.classList && (n.classList.contains('popup') || n.classList.contains('overlay') || n.classList.contains('layer_popup'))) {
+                            n.remove();
+                        }
+                    });
+                });
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        """)
+        time.sleep(1)
+    except Exception as e:
+        print(f"[!] Bugs popup removal failed: {e}")
 
 def capture_site(name, url):
     driver.get(url)
@@ -49,33 +87,16 @@ def capture_site(name, url):
         time.sleep(1)
 
     # 팝업 제거
-    try:
-        if name == "bugs":
-            # 벅스 팝업 제거 강화
-            for _ in range(5):
-                driver.execute_script("""
-                    // 일반 팝업, dimmed, overlay, modal
-                    let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
-                    elems.forEach(e => { e.style.display='none'; e.style.visibility='hidden'; e.remove(); });
-
-                    // iframe 안 팝업 제거
-                    let iframes = document.querySelectorAll('iframe');
-                    iframes.forEach(f => {
-                        try {
-                            let doc = f.contentDocument || f.contentWindow.document;
-                            let innerElems = doc.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
-                            innerElems.forEach(ie => { ie.style.display='none'; ie.style.visibility='hidden'; ie.remove(); });
-                        } catch(e) {}
-                    });
-                """)
-                time.sleep(1)
-        else:
+    if name == "bugs":
+        remove_bugs_popup()
+    else:
+        try:
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
                 elems.forEach(e => e.remove());
             """)
-    except Exception as e:
-        print(f"[!] Popup removal failed for {name}: {e}")
+        except Exception as e:
+            print(f"[!] Popup removal failed for {name}: {e}")
 
     time.sleep(1)
     screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
