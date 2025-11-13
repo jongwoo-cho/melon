@@ -43,12 +43,24 @@ def capture_site(name, url):
     driver.get(url)
     time.sleep(5)  # 페이지 로딩 대기
 
+    # 플로 스크롤 조정
+    if name == "flo":
+        driver.execute_script("window.scrollTo(0, 500)")  # 약간 아래로 내려서 오늘 발매 영역 노출
+        time.sleep(1)
+
     # 팝업 제거
     try:
-        driver.execute_script("""
-            let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
-            elems.forEach(e => e.remove());
-        """)
+        if name == "bugs":
+            # 벅스 팝업 제거 강화
+            driver.execute_script("""
+                let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
+                elems.forEach(e => e.remove());
+            """)
+        else:
+            driver.execute_script("""
+                let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
+                elems.forEach(e => e.remove());
+            """)
     except Exception as e:
         print(f"[!] Popup removal failed for {name}: {e}")
 
