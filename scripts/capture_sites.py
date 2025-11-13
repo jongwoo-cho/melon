@@ -36,44 +36,45 @@ chrome_options.add_argument("--window-size=1920,1080")
 chrome_options.add_argument("--lang=ko-KR")  # 지니 한글 깨짐 방지
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+
 captured_files = []
 
-# 벅스 팝업 제거 강화
-def remove_bugs_popup():
+def remove_bugs_popups(driver):
+    """벅스 팝업 제거 강화"""
     try:
-        # 기본 팝업 제거
+        # 1. 일반 팝업 제거
         driver.execute_script("""
-            let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
-            elems.forEach(e => { e.style.display='none'; e.style.visibility='hidden'; e.remove(); });
+            let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
+            elems.forEach(e => e.remove());
         """)
-
-        # iframe 내부까지 제거
+        # 2. CSS 강제 적용
+        driver.execute_script("""
+            let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
+            elems.forEach(e => {
+                e.style.display = 'none';
+                e.style.visibility = 'hidden';
+                e.style.opacity = '0';
+            });
+        """)
+        # 3. iframe 내부 팝업 제거
         iframes = driver.find_elements("tag name", "iframe")
-        for f in iframes:
+        for iframe in iframes:
             try:
-                driver.switch_to.frame(f)
+                driver.switch_to.frame(iframe)
                 driver.execute_script("""
-                    let elems = document.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
-                    elems.forEach(e => { e.style.display='none'; e.style.visibility='hidden'; e.remove(); });
+                    let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
+                    elems.forEach(e => e.remove());
                 """)
                 driver.switch_to.default_content()
-            except:
+            except Exception:
                 driver.switch_to.default_content()
-
-        # 동적으로 생성되는 팝업 제거
-        driver.execute_script("""
-            const observer = new MutationObserver(mutations => {
-                mutations.forEach(m => {
-                    m.addedNodes.forEach(n => {
-                        if(n.classList && (n.classList.contains('popup') || n.classList.contains('overlay') || n.classList.contains('layer_popup'))) {
-                            n.remove();
-                        }
-                    });
-                });
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-        """)
-        time.sleep(1)
+        # 4. 동적 생성 팝업 반복 제거
+        for _ in range(3):
+            driver.execute_script("""
+                let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
+                elems.forEach(e => e.remove());
+            """)
+            time.sleep(1)
     except Exception as e:
         print(f"[!] Bugs popup removal failed: {e}")
 
@@ -81,22 +82,22 @@ def capture_site(name, url):
     driver.get(url)
     time.sleep(5)  # 페이지 로딩 대기
 
-    # 플로 스크롤 조정
+    # FLO 스크롤 조정
     if name == "flo":
         driver.execute_script("window.scrollTo(0, 500)")  # 오늘 발매 영역 노출
         time.sleep(1)
 
     # 팝업 제거
-    if name == "bugs":
-        remove_bugs_popup()
-    else:
-        try:
+    try:
+        if name == "bugs":
+            remove_bugs_popups(driver)
+        else:
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
                 elems.forEach(e => e.remove());
             """)
-        except Exception as e:
-            print(f"[!] Popup removal failed for {name}: {e}")
+    except Exception as e:
+        print(f"[!] Popup removal failed for {name}: {e}")
 
     time.sleep(1)
     screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
@@ -104,6 +105,7 @@ def capture_site(name, url):
     captured_files.append(screenshot_path)
     print(f"✅ {name} captured → {screenshot_path}")
 
+# 사이트별 캡처
 for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
