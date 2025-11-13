@@ -1,14 +1,18 @@
 name: Music Sites Daily Capture
 
+permissions:
+  contents: write
+
 on:
   schedule:
-    - cron: '30 3 * * *'   # 12:30 KST
-    - cron: '30 9 * * *'   # 18:30 KST
+    - cron: '30 3 * * *'   # KST 12:30
+    - cron: '30 9 * * *'   # KST 18:30
   workflow_dispatch:
 
 jobs:
   capture:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -20,13 +24,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager fpdf pytz
-
-      - name: Install Chrome
-        run: |
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable fonts-nanum
+          sudo apt-get install -y xvfb google-chrome-stable
+          pip install selenium webdriver-manager fpdf2 pytz pillow
+
+      - name: Start virtual display
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+        env:
+          DISPLAY: :99
 
       - name: Run capture script
+        env:
+          DISPLAY: :99
         run: |
           python scripts/capture_sites.py
