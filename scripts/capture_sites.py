@@ -53,23 +53,29 @@ def capture_site(name, url):
         if name == "bugs":
             # 벅스 팝업 제거 강화
             driver.execute_script("""
-                const popupSelectors = [
-                    '.popup', '#popup', '.dimmed', '.overlay', '.modal', '.layer_popup'
+                let selectors = [
+                    "[class*='popup']", "[id*='popup']", ".dimmed", ".overlay", ".modal", ".layer_popup"
                 ];
-                popupSelectors.forEach(sel => {
-                    document.querySelectorAll(sel).forEach(el => el.remove());
+                selectors.forEach(sel => {
+                    document.querySelectorAll(sel).forEach(e => e.remove());
                 });
+            """)
+        else:
+            # 멜론, 지니, 플로 기존 팝업 제거
+            driver.execute_script("""
+                let elems = document.querySelectorAll("[class*='popup'], [id*='popup'], .dimmed, .overlay, .modal");
+                elems.forEach(e => e.remove());
             """)
     except Exception as e:
         print(f"[!] Popup removal failed for {name}: {e}")
 
     time.sleep(1)
-
     screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
     driver.save_screenshot(screenshot_path)
     captured_files.append(screenshot_path)
     print(f"✅ {name} captured → {screenshot_path}")
 
+# 사이트 순회 캡처
 for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
