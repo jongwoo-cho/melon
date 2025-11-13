@@ -70,12 +70,12 @@ def capture_site(name, url):
         print(f"[!] Popup removal failed for {name}: {e}")
 
     time.sleep(1)
+
     screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
     driver.save_screenshot(screenshot_path)
     captured_files.append(screenshot_path)
     print(f"✅ {name} captured → {screenshot_path}")
 
-# 사이트 순회 캡처
 for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
