@@ -51,19 +51,33 @@ def capture_site(name, url):
     # 팝업 제거
     try:
         if name == "bugs":
-            # 벅스 팝업 제거 강화
+            # 벅스 팝업 제거 강화 (iframe 포함)
             driver.execute_script("""
-                let selectors = [
-                    "[class*='popup']", "[id*='popup']", ".dimmed", ".overlay", ".modal", ".layer_popup"
-                ];
+                // iframe 안팝업 제거
+                let iframes = document.querySelectorAll('iframe');
+                iframes.forEach(iframe => {
+                    try {
+                        let doc = iframe.contentDocument || iframe.contentWindow.document;
+                        let popups = doc.querySelectorAll('.popup, .dimmed, .overlay, .modal, .layer_popup');
+                        popups.forEach(p => p.remove());
+                    } catch(e) {}
+                });
+
+                // DOM 팝업 제거
+                let selectors = ['.popup', '#popup', '.dimmed', '.overlay', '.modal', '.layer_popup'];
                 selectors.forEach(sel => {
                     document.querySelectorAll(sel).forEach(e => e.remove());
                 });
+
+                // alert/confirm/prompt 차단
+                window.alert = function() {};
+                window.confirm = function() { return true; };
+                window.prompt = function() { return null; };
             """)
         else:
-            # 멜론, 지니, 플로 기존 팝업 제거
+            # 다른 사이트는 기존 팝업 제거
             driver.execute_script("""
-                let elems = document.querySelectorAll("[class*='popup'], [id*='popup'], .dimmed, .overlay, .modal");
+                let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
                 elems.forEach(e => e.remove());
             """)
     except Exception as e:
