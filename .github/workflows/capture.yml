@@ -1,5 +1,8 @@
 name: Daily Music Capture
 
+permissions:
+  contents: write    # ✅ push 권한 부여
+
 on:
   schedule:
     - cron: "30 3 * * *"   # KST 12:30
@@ -14,29 +17,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager fpdf pytz
+          pip install selenium webdriver-manager reportlab
 
-      - name: Install Chrome & dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb google-chrome-stable fonts-noto-cjk
-
-      - name: Run with Xvfb
-        run: |
-          Xvfb :99 -screen 0 1920x1080x24 &
-          export DISPLAY=:99
-          python scripts/capture_sites.py
-
-      - name: Commit and push PDF
+      - name: Start virtual display
+        run: Xvfb :99 -screen 0 1920x1080x24 &
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPLAY: :99
+
+      - name: Run site capture script
+        env:
+          DISPLAY: :99
+        run: python scripts/capture_sites.py
+
+      - name: Commit and push PDF to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
