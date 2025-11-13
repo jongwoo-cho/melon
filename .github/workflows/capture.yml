@@ -2,8 +2,8 @@ name: Daily Music Capture
 
 on:
   schedule:
-    - cron: "30 3 * * *"   # 한국시간 12:30 (UTC+9 → UTC 03:30)
-    - cron: "30 9 * * *"   # 한국시간 18:30 (UTC+9 → UTC 09:30)
+    - cron: "30 3 * * *"   # KST 12:30
+    - cron: "30 9 * * *"   # KST 18:30
   workflow_dispatch:
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -23,15 +23,16 @@ jobs:
         run: |
           pip install selenium webdriver-manager fpdf pytz
 
-      - name: Install Xvfb
+      - name: Install Chrome & dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb google-chrome-stable fonts-noto-cjk
+
+      - name: Run with Xvfb
+        run: |
           Xvfb :99 -screen 0 1920x1080x24 &
           export DISPLAY=:99
-
-      - name: Run capture script
-        run: python scripts/capture_sites.py
+          python scripts/capture_sites.py
 
       - name: Commit and push PDF
         env:
