@@ -1,38 +1,35 @@
-name: Daily Music Capture
-
-permissions:
-  contents: write
+name: Music Sites Daily Capture
 
 on:
   schedule:
-    - cron: "30 3 * * *"   # KST 12:30
-    - cron: "30 9 * * *"   # KST 18:30
+    - cron: '30 3 * * *'   # 12:30 KST
+    - cron: '30 9 * * *'   # 18:30 KST
   workflow_dispatch:
 
 jobs:
   capture:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
+          pip install selenium webdriver-manager pillow fpdf pytz
+
+      - name: Install Chrome
+        run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb fonts-noto-cjk
-          pip install selenium webdriver-manager pillow reportlab
+          sudo apt-get install -y google-chrome-stable
 
       - name: Run capture script
-        env:
-          DISPLAY: ":99"
         run: |
-          Xvfb :99 -screen 0 1920x1080x24 &
-          sleep 3
           python scripts/capture_sites.py
 
       - name: Commit and push PDF
@@ -41,12 +38,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cd screenshots
-          if ls *.pdf 1> /dev/null 2>&1; then
-            git add *.pdf
-            cd ..
-            git commit -m "📸 Auto capture at $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
-            git push origin main || echo "Push failed"
-          else
-            echo "⚠️ No PDF generated"
-          fi
+          git add screenshots/*.pdf
+          git commit -m "📸 Auto capture at $(date '+%Y-%m-%d %H:%M')" || echo "No PDF changes"
+          git push origin HEAD:main
