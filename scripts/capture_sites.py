@@ -39,127 +39,107 @@ driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), opti
 
 captured_files = []
 
-
-# ----------------------------------------- #
-# 🔥 벅스 팝업 완전 삭제 (MutationObserver)
-# ----------------------------------------- #
-def remove_bugs_popups(driver):
-    """벅스 팝업 완전 삭제 (MutationObserver 활용)"""
+# -----------------------------------------------------------
+# 🔥 벅스 메인페이지 최신음악만 팝업 없이 보이도록 최적화된 전용 제거 함수
+# -----------------------------------------------------------
+def remove_bugs_main_popups(driver):
     try:
-        # MutationObserver 삽입 → 팝업 생성 즉시 제거
+        # 1) 벅스 메인에서 사용하는 모든 팝업 요소 제거
         driver.execute_script("""
-            (function() {
-                if (window.__BUGS_POPUP_BLOCKER__) return;
-                window.__BUGS_POPUP_BLOCKER__ = true;
-
-                const targetKeys = ['popup','layer','modal','dimmed','overlay','mask','ad'];
-
-                const removePopup = () => {
-                    const selectors = [
-                        '[class*="popup"]','[id*="popup"]','.layer_popup','.modal','.modal-wrap',
-                        '.modal-content','.dimmed','.overlay','.mask','.adsbygoogle','.ad','.advertise',
-                        '#popupZone','#eventLayer','#eventPopup','#ad_popup'
-                    ];
-                    selectors.forEach(sel => {
-                        document.querySelectorAll(sel).forEach(e => e.remove());
-                    });
-                };
-
-                // 최초 제거
-                removePopup();
-
-                // DOM 변화를 실시간 감시
-                const observer = new MutationObserver((mutations) => {
-                    for (const m of mutations) {
-                        if (m.addedNodes) {
-                            m.addedNodes.forEach(n => {
-                                if (n.nodeType === 1) {
-                                    const s = (n.className || '') + ' ' + (n.id || '');
-                                    if (targetKeys.some(k => s.toLowerCase().includes(k))) {
-                                        n.remove();
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    removePopup();
-                });
-
-                observer.observe(document.body, { childList: true, subtree: true });
-
-                // body 잠금 해제
-                document.body.style.overflow = 'auto';
-            })();
-        """)
-
-        # 초기 DOM 제거 한 번 더
-        driver.execute_script("""
-            let selectors = [
-                '[class*="popup"]','[id*="popup"]','.layer_popup','.modal','.modal-wrap',
-                '.modal-content','.dimmed','.overlay','.mask','.adsbygoogle','.ad','.advertise',
-                '#popupZone','#eventLayer','#eventPopup','#ad_popup'
+            const selectors = [
+                '#layPop',
+                '.layer-popup',
+                '.event_layer',
+                '.popup',
+                '.modal',
+                '.modal-bg',
+                '.modal-backdrop',
+                '.ad', 
+                '#eventLayer'
             ];
             selectors.forEach(sel => {
-                document.querySelectorAll(sel).forEach(e => e.remove());
+                document.querySelectorAll(sel).forEach(el => el.remove());
             });
         """)
 
-        # 광고/팝업 iframe 제거
+        # 2) body 스크롤 막힘 해제
         driver.execute_script("""
-            document.querySelectorAll('iframe').forEach(ifr => {
-                const src = ifr.src || '';
-                if (src.includes('ad') || src.includes('popup') || src.includes('event')) {
-                    ifr.remove();
-                }
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+            document.body.classList.remove('no-scroll');
+        """)
+
+        # 3) 팝업 재생성 차단
+        driver.execute_script("""
+            window.open = () => null;
+
+            const blockList = ['layPop', 'eventLayer', 'layer-popup'];
+            const observer = new MutationObserver(mutations => {
+                mutations.forEach(m => {
+                    m.addedNodes.forEach(node => {
+                        if (node.id && blockList.includes(node.id)) {
+                            node.remove();
+                        }
+                        if (node.classList) {
+                            if ([...node.classList].some(c => c.includes('popup') || c.includes('layer'))) {
+                                node.remove();
+                            }
+                        }
+                    });
+                });
             });
+            observer.observe(document.body, { childList: true, subtree: true });
         """)
 
     except Exception as e:
-        print(f"[!] Bugs popup removal failed: {e}")
+        print("[!] Bugs popup removal failed:", e)
 
-
-# ----------------------------------------- #
-# 📸 사이트 캡처
-# ----------------------------------------- #
+# -----------------------------------------------------------
+# 사이트별 캡처
+# -----------------------------------------------------------
 def capture_site(name, url):
     driver.get(url)
-    time.sleep(5)  # 페이지 로딩
+    time.sleep(5)
 
-    # FLO 스크롤 조정
+    # FLO 스크롤
     if name == "flo":
         driver.execute_script("window.scrollTo(0, 500)")
         time.sleep(1)
 
-    # 팝업 제거
-    try:
-        if name == "bugs":
-            remove_bugs_popups(driver)
-            time.sleep(2)  # 팝업이 다시 뜨는 시간 → MutationObserver가 삭제함
-        else:
+    # 벅스 전용 로직
+    if name == "bugs":
+        remove_bugs_main_popups(driver)
+        time.sleep(1)
+
+    # 일반 사이트 팝업 제거
+    else:
+        try:
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
                 elems.forEach(e => e.remove());
             """)
-    except Exception as e:
-        print(f"[!] Popup removal failed for {name}: {e}")
+        except:
+            pass
 
     time.sleep(1)
+
     screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
     driver.save_screenshot(screenshot_path)
     captured_files.append(screenshot_path)
     print(f"✅ {name} captured → {screenshot_path}")
 
-
+# -----------------------------------------------------------
 # 실행
+# -----------------------------------------------------------
 for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
 driver.quit()
 
-# ----------------------------------------- #
-# 📄 PNG → PDF 변환 (기존 유지)
-# ----------------------------------------- #
-pdf_path = os.path.join(OUTPUT_DIR, f"music_capture_{timestamp}.pdf")
+# -----------------------------------------------------------
+# PNG → PDF 변환
+# -----------------------------------------------------------
+pdf_path = os.path.abspath(os.path.join(OUTPUT_DIR, f"music_capture_{timestamp}.pdf"))
 pdf = FPDF()
 
 for img_file in captured_files:
@@ -168,11 +148,12 @@ for img_file in captured_files:
     img_w, img_h = img.size
     ratio = min(pdf_w / img_w, pdf_h / img_h)
     pdf_w_scaled, pdf_h_scaled = img_w * ratio, img_h * ratio
+
     pdf.add_page()
     pdf.image(img_file, x=0, y=0, w=pdf_w_scaled, h=pdf_h_scaled)
 
 pdf.output(pdf_path)
-print(f"✅ PDF created → {pdf_path}")
+print(f"✅ PDF saved → {pdf_path}")
 
 # PNG 삭제
 for f in captured_files:
