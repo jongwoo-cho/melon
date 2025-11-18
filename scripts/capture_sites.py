@@ -39,45 +39,89 @@ driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), opti
 
 captured_files = []
 
+
+# ---------------------------- #
+#    🔥 벅스 팝업 제거 최강 버전
+# ---------------------------- #
 def remove_bugs_popups(driver):
-    """벅스 팝업 제거 강화"""
+    """벅스 팝업 제거 최강 버전"""
     try:
-        # 1. 일반 팝업 제거
+        # 0) 스타일 강제 차단 - 팝업 스타일 자체를 무력화
         driver.execute_script("""
-            let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
-            elems.forEach(e => e.remove());
+            const css = `
+                *[class*="popup"], *[id*="popup"], 
+                .layer_popup, .modal, .modal-wrap, .modal-content,
+                .dimmed, .overlay, .mask, .adsbygoogle, .ad, .advertise,
+                #popupZone, #eventLayer, #eventPopup, #ad_popup
+                { display: none !important; visibility: hidden !important; opacity: 0 !important; }
+                body { overflow: auto !important; }
+            `;
+            const styleTag = document.createElement('style');
+            styleTag.innerHTML = css;
+            document.head.appendChild(styleTag);
         """)
-        # 2. CSS 강제 적용
+
+        # 1) 팝업 DOM 직접 제거
         driver.execute_script("""
-            let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
-            elems.forEach(e => {
-                e.style.display = 'none';
-                e.style.visibility = 'hidden';
-                e.style.opacity = '0';
+            let selectors = [
+                '[class*="popup"]','[id*="popup"]','.layer_popup','.modal','.modal-wrap',
+                '.modal-content','.dimmed','.overlay','.mask','.adsbygoogle','.ad',
+                '.advertise','#popupZone','#eventLayer','#eventPopup','#ad_popup'
+            ];
+            selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(e => e.remove());
             });
         """)
-        # 3. iframe 내부 팝업 제거
+
+        # 2) 광고/이벤트 iframe 제거
+        driver.execute_script("""
+            document.querySelectorAll('iframe').forEach(ifr => {
+                const src = ifr.src || '';
+                if (src.includes('ad') || src.includes('popup') || src.includes('event')) {
+                    ifr.remove();
+                }
+            });
+        """)
+
+        # 3) iframe 내부 팝업 제거
         iframes = driver.find_elements("tag name", "iframe")
         for iframe in iframes:
             try:
                 driver.switch_to.frame(iframe)
                 driver.execute_script("""
-                    let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
-                    elems.forEach(e => e.remove());
+                    let selectors = [
+                        '[class*="popup"]', '[id*="popup"]',
+                        '.layer_popup', '.modal', '.dimmed', '.overlay', '.mask'
+                    ];
+                    selectors.forEach(sel => {
+                        document.querySelectorAll(sel).forEach(e => e.remove());
+                    });
                 """)
                 driver.switch_to.default_content()
-            except Exception:
+            except:
                 driver.switch_to.default_content()
-        # 4. 동적 생성 팝업 반복 제거
-        for _ in range(3):
+
+        # 4) 3초 동안 반복 제거 (동적 팝업)
+        for _ in range(6):  # 6회 × 0.5초 = 3초
             driver.execute_script("""
-                let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal, .layer_popup');
-                elems.forEach(e => e.remove());
+                let selectors = [
+                    '[class*="popup"]','[id*="popup"]','.layer_popup','.modal','.modal-wrap',
+                    '.modal-content','.dimmed','.overlay','.mask','.adsbygoogle','.ad','.advertise',
+                    '#popupZone','#eventLayer','#eventPopup','#ad_popup'
+                ];
+                selectors.forEach(sel => {
+                    document.querySelectorAll(sel).forEach(e => e.remove());
+                });
             """)
-            time.sleep(1)
+            time.sleep(0.5)
+
     except Exception as e:
         print(f"[!] Bugs popup removal failed: {e}")
 
+
+# ---------------------------- #
+#    📸 사이트 캡처 함수
+# ---------------------------- #
 def capture_site(name, url):
     driver.get(url)
     time.sleep(5)  # 페이지 로딩 대기
@@ -91,6 +135,8 @@ def capture_site(name, url):
     try:
         if name == "bugs":
             remove_bugs_popups(driver)
+            time.sleep(2)
+            remove_bugs_popups(driver)  # 벅스는 팝업이 다시 뜨므로 2회 실행
         else:
             driver.execute_script("""
                 let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
@@ -105,18 +151,24 @@ def capture_site(name, url):
     captured_files.append(screenshot_path)
     print(f"✅ {name} captured → {screenshot_path}")
 
-# 사이트별 캡처
+
+# ---------------------------- #
+#     🔽 실행부
+# ---------------------------- #
 for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
 driver.quit()
 
-# PNG → PDF
+# ---------------------------- #
+#     📄 PNG → PDF 변환
+# ---------------------------- #
 pdf_path = os.path.join(OUTPUT_DIR, f"music_capture_{timestamp}.pdf")
 pdf = FPDF()
+
 for img_file in captured_files:
     img = Image.open(img_file)
-    pdf_w, pdf_h = 210, 297  # A4
+    pdf_w, pdf_h = 210, 297  # A4 사이즈
     img_w, img_h = img.size
     ratio = min(pdf_w / img_w, pdf_h / img_h)
     pdf_w_scaled, pdf_h_scaled = img_w * ratio, img_h * ratio
