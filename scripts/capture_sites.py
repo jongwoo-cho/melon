@@ -29,7 +29,7 @@ SITES = {
     "flo": "https://www.music-flo.com/"
 }
 
-# Chrome 옵션 (headless)
+# Chrome 옵션
 chrome_options = Options()
 chrome_options.add_argument("--headless=new")
 chrome_options.add_argument("--no-sandbox")
@@ -39,8 +39,7 @@ chrome_options.add_argument("--disable-notifications")
 chrome_options.add_argument("--window-size=1920,1080")
 chrome_options.add_argument("--lang=ko-KR")
 
-service = Service()
-driver = webdriver.Chrome(service=service, options=chrome_options)
+driver = webdriver.Chrome(service=Service(), options=chrome_options)
 wait = WebDriverWait(driver, 10)
 
 captured_files = []
@@ -135,7 +134,7 @@ def remove_bugs_popups(driver, timeout=6.0):
 
 
 # -----------------------------------------------------------
-# 🔵 FLO 처리 — 팝업 제거 + 캡처 영역 더 내려서 표시
+# 🔵 FLO 처리 — 팝업 제거 + 캡처 영역 충분히 내려서 표시
 # -----------------------------------------------------------
 def handle_flo(driver):
     try:
@@ -151,12 +150,14 @@ def handle_flo(driver):
 
     try:
         el = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]")
-        driver.execute_script("arguments[0].scrollIntoView(true);", el)
+        driver.execute_script("arguments[0].scrollIntoView({block:'start'});", el)
         time.sleep(0.5)
-        driver.execute_script("window.scrollBy(0,120);")  # 캡처 영역 더 아래로 스크롤
+
+        # 캡처 영역 충분히 아래로 스크롤 (300px)
+        driver.execute_script("window.scrollBy(0, 300);")
         time.sleep(0.5)
     except:
-        driver.execute_script("window.scrollTo(0,600)")
+        driver.execute_script("window.scrollTo(0,900)")
         time.sleep(0.5)
 
 
