@@ -39,7 +39,6 @@ chrome_options.add_argument("--disable-notifications")
 chrome_options.add_argument("--window-size=1920,1080")
 chrome_options.add_argument("--lang=ko-KR")
 
-# 시스템 ChromeDriver 사용
 service = Service()
 driver = webdriver.Chrome(service=service, options=chrome_options)
 wait = WebDriverWait(driver, 10)
@@ -52,7 +51,6 @@ captured_files = []
 # -----------------------------------------------------------
 def remove_bugs_popups(driver, timeout=6.0):
     try:
-        # 클릭 가능한 close 버튼 시도
         close_btn_selectors = [
             ".pop_close", ".btn_close", ".btn-close", ".close", ".layerClose",
             ".btnClose", ".lay-close", ".btnClosePop", ".pop_btn_close"
@@ -78,7 +76,6 @@ def remove_bugs_popups(driver, timeout=6.0):
                     except:
                         pass
 
-        # ESC 키 전송
         try:
             body = driver.find_element(By.TAG_NAME, "body")
             for _ in range(3):
@@ -87,7 +84,6 @@ def remove_bugs_popups(driver, timeout=6.0):
         except:
             pass
 
-        # JS 강력 제거
         js = r"""
         (function(timeout_ms){
             function removeNode(n){try{if(n&&n.parentNode){n.parentNode.removeChild(n);}}catch(e){}}
@@ -139,11 +135,10 @@ def remove_bugs_popups(driver, timeout=6.0):
 
 
 # -----------------------------------------------------------
-# 🔵 FLO 처리 — 팝업 제거 + 10px만 살짝 스크롤
+# 🔵 FLO 처리 — 팝업 제거 + 캡처 영역 더 내려서 표시
 # -----------------------------------------------------------
 def handle_flo(driver):
     try:
-        # 팝업 제거
         driver.execute_script("""
             let selectors=['.popup','.pop','.modal','.layer','.event-popup','[class*="Popup"]','[id*="popup"]','.cookie','.cookie-popup'];
             selectors.forEach(sel=>{document.querySelectorAll(sel).forEach(e=>e.remove());});
@@ -157,12 +152,12 @@ def handle_flo(driver):
     try:
         el = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]")
         driver.execute_script("arguments[0].scrollIntoView(true);", el)
-        time.sleep(0.3)
-        driver.execute_script("window.scrollBy(0,10);")  # 10px 살짝 내려서 조정
-        time.sleep(0.3)
+        time.sleep(0.5)
+        driver.execute_script("window.scrollBy(0,120);")  # 캡처 영역 더 아래로 스크롤
+        time.sleep(0.5)
     except:
-        driver.execute_script("window.scrollTo(0,450)")
-        time.sleep(0.3)
+        driver.execute_script("window.scrollTo(0,600)")
+        time.sleep(0.5)
 
 
 # -----------------------------------------------------------
@@ -202,6 +197,7 @@ for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
 driver.quit()
+
 
 # -----------------------------------------------------------
 # PNG → PDF 변환
