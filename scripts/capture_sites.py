@@ -45,7 +45,6 @@ wait = WebDriverWait(driver, 10)
 
 captured_files = []
 
-
 # -----------------------------------------------------------
 # 벅스 팝업 제거
 # -----------------------------------------------------------
@@ -117,11 +116,11 @@ def remove_bugs_popups(driver, timeout=6.0):
     except:
         return False
 
-
 # -----------------------------------------------------------
-# FLO — 캡처 영역 수정 (‘오늘 발매 음악’ 기준)
+# FLO 처리 — 완전 확실한 캡처 영역
 # -----------------------------------------------------------
 def handle_flo(driver):
+    # 팝업 제거 (기존 로직 유지)
     try:
         driver.execute_script("""
             let sel = [
@@ -134,34 +133,47 @@ def handle_flo(driver):
         """)
     except:
         pass
-    time.sleep(0.8)
+    time.sleep(0.7)
 
     try:
+        # '오늘 발매 음악' 헤더
         header = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]")
-        js_code = '''
+        driver.execute_script("""
             const h = arguments[0];
 
-            // h2가 포함된 section 또는 div 찾기
-            let p = h;
-            while (p && p.parentElement && p.tagName.toLowerCase() !== 'section') {
-                p = p.parentElement;
+            // 헤더 포함 section 찾기
+            let section = h;
+            while(section && section.parentElement && section.tagName.toLowerCase() != 'section'){
+                section = section.parentElement;
             }
-            if (!p) { p = h.parentElement; }
+            if(!section) section = h.parentElement;
 
-            const rect = p.getBoundingClientRect();
+            // section 높이
+            const rect = section.getBoundingClientRect();
             const sectionTop = rect.top + window.scrollY;
             const sectionHeight = rect.height;
 
-            const target = sectionTop + sectionHeight * 0.35;  // 섹션 하단 기준 스크롤
-            window.scrollTo({ top: target });
-        '''
-        driver.execute_script(js_code, header)
-        time.sleep(1.2)
+            // 마지막 카드 찾기
+            let lastCard = section.querySelector('div.trackListItem, li.track-list__item, div.card, li.card');
+            if(lastCard){
+                const r = lastCard.getBoundingClientRect();
+                const lastY = r.top + window.scrollY + r.height;
+                window.scrollTo({top: lastY - 100}); // 마지막 카드 위치에서 위로 100px 보정
+            } else {
+                // 카드가 없으면 섹션 기준 스크롤
+                window.scrollTo({top: sectionTop + sectionHeight * 0.35});
+            }
+        """, header)
+
+        # 반복 스크롤로 동적 로딩 대응
+        for _ in range(3):
+            driver.execute_script("window.scrollBy(0, 200);")
+            time.sleep(0.3)
 
     except:
+        # fallback
         driver.execute_script("window.scrollTo(0, 1400)")
-        time.sleep(1)
-
+        time.sleep(0.5)
 
 # -----------------------------------------------------------
 # 사이트별 캡처
@@ -193,7 +205,6 @@ def capture_site(name, url):
     captured_files.append(screenshot_path)
     print(f"✅ {name} captured → {screenshot_path}")
 
-
 # -----------------------------------------------------------
 # 실행
 # -----------------------------------------------------------
@@ -201,7 +212,6 @@ for site_name, site_url in SITES.items():
     capture_site(site_name, site_url)
 
 driver.quit()
-
 
 # -----------------------------------------------------------
 # PNG → PDF 변환
