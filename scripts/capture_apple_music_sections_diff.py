@@ -13,9 +13,11 @@ urls = {
     "CN": "https://music.apple.com/cn/browse"
 }
 
-# 저장 폴더
+# 저장 폴더 (없으면 자동 생성)
 output_dir = "captures"
-os.makedirs(output_dir, exist_ok=True)
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+    print(f"Created folder: {output_dir}")
 
 # 날짜별 파일명
 timestamp = datetime.now().strftime("%Y%m%d")
@@ -39,8 +41,6 @@ with sync_playwright() as p:
                 section_title = sec.locator("h2").inner_text().strip()
             except:
                 continue
-
-            # 관심 섹션만 필터
             if section_title not in ["New", "Latest Song", "New Releases", "Trending Songs"]:
                 continue
 
