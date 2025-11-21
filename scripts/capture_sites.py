@@ -4,124 +4,58 @@ from datetime import datetime
 import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from fpdf import FPDF
-from PIL import Image
-
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
 
-# KST 시간
+
+# ==============================
+#  공통 설정
+# ==============================
 KST = pytz.timezone("Asia/Seoul")
 now = datetime.now(KST)
-timestamp = now.strftime("%y%m%d_%H%M")
+timestamp = now.strftime("%Y%m%d_%H%M%S")
 
-# 저장 폴더
-OUTPUT_DIR = "screenshots"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+output_folder = "capture_output"
+os.makedirs(output_folder, exist_ok=True)
 
-# 사이트 정보
-SITES = {
-    "melon": "https://www.melon.com/",
-    "genie": "https://www.genie.co.kr/",
-    "bugs": "https://music.bugs.co.kr/",
-    "flo": "https://www.music-flo.com/"
-}
-
-# Chrome 옵션
-chrome_options = Options()
-chrome_options.add_argument("--headless=new")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_argument("--disable-popup-blocking")
-chrome_options.add_argument("--disable-notifications")
-chrome_options.add_argument("--window-size=1920,1080")
-chrome_options.add_argument("--lang=ko-KR")
-
-driver = webdriver.Chrome(service=Service(), options=chrome_options)
-wait = WebDriverWait(driver, 10)
-
-captured_files = []
+flo_path   = os.path.join(output_folder, f"flo_{timestamp}.png")
+melon_path = os.path.join(output_folder, f"melon_{timestamp}.png")
+genie_path = os.path.join(output_folder, f"genie_{timestamp}.png")
+bugs_path  = os.path.join(output_folder, f"bugs_{timestamp}.png")
 
 
-# -----------------------------------------------------------
-# 벅스 팝업 제거 (그대로 유지)
-# -----------------------------------------------------------
-def remove_bugs_popups(driver, timeout=6.0):
-    try:
-        close_btn_selectors = [
-            ".pop_close", ".btn_close", ".btn-close", ".close", ".layerClose",
-            ".btnClose", ".lay-close", ".btnClosePop", ".pop_btn_close"
-        ]
-        for sel in close_btn_selectors:
-            els = driver.find_elements(By.CSS_SELECTOR, sel)
-            for e in els:
-                try:
-                    driver.execute_script("arguments[0].scrollIntoView(true);", e)
-                    e.click()
-                except:
-                    pass
-
-        texts = ["닫기", "팝업닫기", "×", "✕", "Close", "close"]
-        for t in texts:
-            matches = driver.find_elements(By.XPATH, f"//*[text()[normalize-space()='{t}']]")
-            for m in matches:
-                try:
-                    m.click()
-                except:
-                    try:
-                        driver.execute_script("arguments[0].click();", m)
-                    except:
-                        pass
-
-        try:
-            body = driver.find_element(By.TAG_NAME, "body")
-            for _ in range(3):
-                body.send_keys(Keys.ESCAPE)
-                time.sleep(0.2)
-        except:
-            pass
-
-        js = r"""
-        (function(timeout_ms){
-            function removeNode(n){
-                try{ if(n && n.parentNode) n.parentNode.removeChild(n); }catch(e){}
-            }
-            const selectors = [
-                '#layPop','#layer_pop','#popup','#popupLayer','.layer-popup','.pop_layer','.popup',
-                '.modal','.modal-bg','.modal-backdrop','.dimmed','.dimmedLayer','.popdim',
-                '.ly_wrap','.ly_pop','.pop_wrap','.eventLayer','.evt_layer'
-            ];
-
-            function strongRemove(){
-                selectors.forEach(sel => {
-                    document.querySelectorAll(sel).forEach(el => removeNode(el));
-                });
-                document.documentElement.style.overflow = 'auto';
-                document.body.style.overflow = 'auto';
-            }
-
-            for (let i = 0; i < 5; i++) strongRemove();
-
-            const interval = setInterval(strongRemove, 300);
-            setTimeout(() => clearInterval(interval), timeout_ms);
-        })(%d);
-        """ % int(timeout * 1000)
-
-        driver.execute_script(js)
-        time.sleep(1)
-        return True
-
-    except:
-        return False
+# ==============================
+#  크롬 옵션
+# ==============================
+options = webdriver.ChromeOptions()
+options.add_argument("--headless=new")
+options.add_argument("--window-size=1920,5000")
+options.add_argument("--disable-popup-blocking")
+options.add_argument("--disable-gpu")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
 
 
-# -----------------------------------------------------------
-# FLO — ‘오늘 발매 음악’ 섹션 아래가 확실히 보이도록 스크롤
-# -----------------------------------------------------------
-def handle_flo(driver):
-    # 기존 팝업 제거 유지
+driver = webdriver.Chrome(
+    service=Service(ChromeDriverManager().install()),
+    options=options
+)
+
+
+
+# ==============================
+#  사이트별 처리 함수
+# ==============================
+
+# --------------------------------------------------
+#  FLO
+# --------------------------------------------------
+def handle_flo():
+    url = "https://www.music-flo.com/"
+    driver.get(url)
+    time.sleep(2)
+
+    # ----- 기존 팝업 제거 유지 -----
     try:
         driver.execute_script("""
             let sel = [
@@ -130,4 +64,121 @@ def handle_flo(driver):
             ];
             sel.forEach(s => document.querySelectorAll(s).forEach(e => e.remove()));
             document.body.style.overflow = 'auto';
-            document.documentElement.style.overflo
+            document.documentElement.style.overflow = 'auto';
+        """)
+    except:
+        pass
+    time.sleep(1)
+
+    # ----- FLO 스크롤 (오늘 발매 음악 기준) -----
+    try:
+        header = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]")
+
+        js_code = '''
+            const h = arguments[0];
+
+            // h2가 포함된 섹션(최상위 section 또는 div)
+            let p = h;
+            while (p && p.parentElement && p.tagName.toLowerCase() !== 'section') {
+                p = p.parentElement;
+            }
+            if (!p) { p = h.parentElement; }
+
+            const rect = p.getBoundingClientRect();
+            const sectionTop = rect.top + window.scrollY;
+            const sectionHeight = rect.height;
+
+            // 섹션의 35% 위치까지 스크롤
+            const target = sectionTop + sectionHeight * 0.35;
+            window.scrollTo({ top: target });
+        '''
+        driver.execute_script(js_code, header)
+        time.sleep(1.2)
+
+    except Exception as e:
+        print("FLO scroll fallback:", e)
+        driver.execute_script("window.scrollTo(0, 1400)")
+        time.sleep(1)
+
+    # ----- 캡처 -----
+    driver.save_screenshot(flo_path)
+    print("[FLO 캡처 완료]", flo_path)
+
+
+
+
+# --------------------------------------------------
+#  MELON (변경 없음)
+# --------------------------------------------------
+def handle_melon():
+    url = "https://www.melon.com/index.htm"
+    driver.get(url)
+    time.sleep(2)
+
+    try:
+        driver.execute_script("""
+            let popup = document.querySelector('#gnb_banner');
+            if (popup) popup.remove();
+        """)
+    except:
+        pass
+    time.sleep(1)
+
+    driver.execute_script("window.scrollTo(0, 800)")
+    time.sleep(1)
+    driver.save_screenshot(melon_path)
+    print("[MELON 캡처 완료]", melon_path)
+
+
+
+# --------------------------------------------------
+#  GENIE (변경 없음)
+# --------------------------------------------------
+def handle_genie():
+    url = "https://www.genie.co.kr/"
+    driver.get(url)
+    time.sleep(2)
+
+    driver.execute_script("window.scrollTo(0, 900)")
+    time.sleep(1)
+    driver.save_screenshot(genie_path)
+    print("[GENIE 캡처 완료]", genie_path)
+
+
+
+# --------------------------------------------------
+#  BUGS (팝업 제거 강화 유지)
+# --------------------------------------------------
+def handle_bugs():
+    url = "https://music.bugs.co.kr/"
+    driver.get(url)
+    time.sleep(2)
+
+    try:
+        driver.execute_script("""
+            document.querySelectorAll('.layerPopup, .modal, #popup, .popup').forEach(e => e.remove());
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+        """)
+    except:
+        pass
+    time.sleep(1)
+
+    driver.execute_script("window.scrollTo(0, 900)")
+    time.sleep(1)
+    driver.save_screenshot(bugs_path)
+    print("[BUGS 캡처 완료]", bugs_path)
+
+
+
+# ==============================
+#  실행
+# ==============================
+handle_flo()
+handle_melon()
+handle_genie()
+handle_bugs()
+
+driver.quit()
+
+print("\n=== 전체 캡처 완료 ===")
