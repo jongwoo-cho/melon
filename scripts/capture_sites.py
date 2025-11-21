@@ -117,10 +117,10 @@ def remove_bugs_popups(driver, timeout=6.0):
         return False
 
 # -----------------------------------------------------------
-# FLO 처리 — 완전 확실한 캡처 영역
+# FLO — 전체 페이지 캡처
 # -----------------------------------------------------------
 def handle_flo(driver):
-    # 팝업 제거 (기존 로직 유지)
+    # 팝업 제거 (기존 로직 그대로)
     try:
         driver.execute_script("""
             let sel = [
@@ -133,47 +133,15 @@ def handle_flo(driver):
         """)
     except:
         pass
-    time.sleep(0.7)
+    time.sleep(1)
 
+    # 페이지 전체 높이 가져와서 창 크기 조정
     try:
-        # '오늘 발매 음악' 헤더
-        header = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]")
-        driver.execute_script("""
-            const h = arguments[0];
-
-            // 헤더 포함 section 찾기
-            let section = h;
-            while(section && section.parentElement && section.tagName.toLowerCase() != 'section'){
-                section = section.parentElement;
-            }
-            if(!section) section = h.parentElement;
-
-            // section 높이
-            const rect = section.getBoundingClientRect();
-            const sectionTop = rect.top + window.scrollY;
-            const sectionHeight = rect.height;
-
-            // 마지막 카드 찾기
-            let lastCard = section.querySelector('div.trackListItem, li.track-list__item, div.card, li.card');
-            if(lastCard){
-                const r = lastCard.getBoundingClientRect();
-                const lastY = r.top + window.scrollY + r.height;
-                window.scrollTo({top: lastY - 100}); // 마지막 카드 위치에서 위로 100px 보정
-            } else {
-                // 카드가 없으면 섹션 기준 스크롤
-                window.scrollTo({top: sectionTop + sectionHeight * 0.35});
-            }
-        """, header)
-
-        # 반복 스크롤로 동적 로딩 대응
-        for _ in range(3):
-            driver.execute_script("window.scrollBy(0, 200);")
-            time.sleep(0.3)
-
+        total_height = driver.execute_script("return document.body.scrollHeight")
+        driver.set_window_size(1920, total_height + 200)  # 200px 여유
+        time.sleep(1)
     except:
-        # fallback
-        driver.execute_script("window.scrollTo(0, 1400)")
-        time.sleep(0.5)
+        pass
 
 # -----------------------------------------------------------
 # 사이트별 캡처
