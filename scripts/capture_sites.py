@@ -46,7 +46,7 @@ captured_files = []
 
 
 # -----------------------------------------------------------
-# 벅스 강력 팝업 제거 (기존 로직 유지)
+# 벅스 강력 팝업 제거 (기존 로직 그대로 유지)
 # -----------------------------------------------------------
 def remove_bugs_popups(driver, timeout=6.0):
     try:
@@ -83,7 +83,6 @@ def remove_bugs_popups(driver, timeout=6.0):
         except:
             pass
 
-        # JS 로 반복 제거
         js = r"""
         (function(timeout_ms){
             function removeNode(n){
@@ -156,19 +155,21 @@ def remove_bugs_popups(driver, timeout=6.0):
             }, timeout_ms);
         })(%d);
         """ % int(timeout * 1000)
+
         driver.execute_script(js)
         time.sleep(min(1.0, timeout / 3.0))
         return True
+
     except Exception as e:
         print("[!] remove_bugs_popups error:", e)
         return False
 
 
 # -----------------------------------------------------------
-# 🔵 FLO 처리 전략 — 팝업 제거 + 확실한 아래 스크롤
+# 🔵 FLO 처리 — 확실한 '아래 스크롤' 최종 해법
 # -----------------------------------------------------------
 def handle_flo(driver):
-    # 팝업 제거
+    # 기존의 FLO 팝업 제거 유지
     try:
         driver.execute_script("""
             let sel = [
@@ -183,58 +184,53 @@ def handle_flo(driver):
         pass
     time.sleep(0.7)
 
-    # 전략 조합: 여러 방식으로 스크롤을 시도
-    # 1) 제목 요소 + 컨테이너 기반 스크롤
+    # ---------------------------
+    # 1) 화면의 40~60% 지점으로 강제 스크롤
+    # ---------------------------
     try:
-        header = driver.find_element(By.XPATH, "//h2[contains(text(),'오늘 발매')]")
-        # scroll header into view
-        driver.execute_script("arguments[0].scrollIntoView({block:'start'});", header)
+        full_h = driver.execute_script("return document.body.scrollHeight;")
+        halfway = int(full_h * 0.45)
+        driver.execute_script(f"window.scrollTo(0, {halfway});")
         time.sleep(0.5)
+    except:
+        pass
 
-        # 2) 바로 아래 리스트 컨테이너의 높이를 구해서 동적으로 스크롤
-        list_container_h = driver.execute_script("""
-            let header = arguments[0];
-            // 부모 또는 옆의 리스트 컨테이너 찾기 (예: ul, div)
-            let cont = header.nextElementSibling;
-            if (!cont) cont = header.parentElement;
-            if (!cont) return 0;
-            return cont.getBoundingClientRect().height;
-        """, header)
+    # ---------------------------
+    # 2) 섹션 제목 탐색 후 자동 스크롤
+    # ---------------------------
+    section_titles = ["오늘 발매", "지금 뜨는 음악", "뮤직픽", "핫이슈", "New", "이 노래 어때"]
+    try:
+        xp = " | ".join([f"//*[contains(text(),'{t}')]" for t in section_titles])
+        target = driver.find_element(By.XPATH, xp)
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", target)
+        time.sleep(0.6)
+    except:
+        pass
 
-        if list_container_h and list_container_h > 0:
-            # 화면 높이 계산 + 컨테이너 절반 정도 아래로 스크롤
-            driver.execute_script(f"window.scrollBy(0, {list_container_h * 0.5});")
-        else:
-            # fallback: 절대값 스크롤
-            driver.execute_script("window.scrollBy(0, 300);")
-        time.sleep(0.5)
+    # ---------------------------
+    # 3) FLO 트랙/카드 리스트 요소 완전 탐색
+    # ---------------------------
+    flo_selectors = [
+        "div.trackListItem",
+        "li.track-list__item",
+        "div.card",
+        "li.card",
+        "div[class*='Track']", 
+        "li[class*='Track']"
+    ]
 
-        # 3) 마지막 카드 요소(10번째 곡)까지 스크롤, 그 후 위로 보정
-        try:
-            # 예: 리스트 카드들이 <li> 또는 div.card 형태라 가정
-            cards = driver.find_elements(By.CSS_SELECTOR, "div.trackListItem, li.track-list__item, div.card, li.card")
-            if len(cards) >= 10:
-                last = cards[9]  # 10번째 요소 (0-indexed)
-            else:
-                last = cards[-1]
-            driver.execute_script("arguments[0].scrollIntoView(true);", last)
-            time.sleep(0.5)
-            # 마지막까지 가고 나서 조금 위로 당겨서 전체 리스트 보이게
-            driver.execute_script("window.scrollBy(0, -100);")
-            time.sleep(0.5)
-        except Exception:
-            pass
-
-    except Exception as e:
-        # 안전 장치 fallback
-        print("[!] FLO scroll 전략 1 실패:", e)
-        driver.execute_script("window.scrollTo(0, 900)")
-        time.sleep(0.5)
-
-    # 4) 반복 시도: 동적 로딩이 있을 경우
-    for _ in range(3):
-        driver.execute_script("window.scrollBy(0, 200);")
-        time.sleep(0.4)
+    for sel in flo_selectors:
+        els = driver.find_elements(By.CSS_SELECTOR, sel)
+        if len(els) > 0:
+            try:
+                last = els[-1]
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", last)
+                time.sleep(0.5)
+                driver.execute_script("window.scrollBy(0, -120);")  # 위로 약간 보정
+                time.sleep(0.5)
+                break
+            except:
+                pass
 
 
 # -----------------------------------------------------------
