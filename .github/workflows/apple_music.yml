@@ -26,7 +26,7 @@ jobs:
           pip install selenium webdriver-manager openpyxl
 
       - name: Run scraper
-        run: python scrape_apple_music.py
+        run: python scripts/scrape_apple_music.py
 
       - name: Commit result
         run: |
