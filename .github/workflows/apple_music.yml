@@ -1,9 +1,12 @@
 name: Apple Music Daily Scraper
 
+permissions:
+  contents: write  # ← 꼭 필요!
+
 on:
   schedule:
-    - cron: "0 0 * * *"  # 매일 09:00 UTC 실행 → 한국 기준 18시
-  workflow_dispatch:      # 수동 실행도 가능
+    - cron: "0 9 * * *"   # 매일 18:00 KST
+  workflow_dispatch:
 
 jobs:
   build:
@@ -23,7 +26,7 @@ jobs:
           pip install selenium webdriver-manager openpyxl
 
       - name: Run scraper
-        run: python scripts/scrape_apple_music.py
+        run: python scrape_apple_music.py
 
       - name: Commit result
         run: |
