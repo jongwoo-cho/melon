@@ -38,4 +38,5 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git config --global user.name "github-actionsBot"
           git add spotify/*.xlsx
-          git commit -m "Daily Spotify scrape - $(date '+%Y-%m
+          git commit -m "Daily Spotify scrape - $(date '+%Y-%m-%d')" || echo "No changes to commit"
+          git push origin HEAD
