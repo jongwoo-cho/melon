@@ -26,5 +26,3 @@ jobs:
 
       - name: Run scraping and push
         run: python scripts/spotify_kpop_on.py
-        env:
-          PAT_GITHUB: ${{ secrets.PAT_GITHUB }}
