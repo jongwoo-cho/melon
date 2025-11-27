@@ -6,7 +6,9 @@ import requests
 from bs4 import BeautifulSoup
 import subprocess
 
-# 1. Spotify K-Pop ON! 스크래핑
+# -----------------------------
+# 1. Spotify K-Pop ON! 플레이리스트 스크래핑
+# -----------------------------
 playlist_url = "https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1"
 headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -15,7 +17,6 @@ if res.status_code != 200:
     raise Exception(f"페이지 요청 실패: {res.status_code}")
 
 html = res.text
-from bs4 import BeautifulSoup
 soup = BeautifulSoup(html, "html.parser")
 
 tracks = []
@@ -28,7 +29,9 @@ for i, elem in enumerate(track_elements, start=1):
     added_at = "알 수 없음"
     tracks.append([i, title, artists, added_at])
 
+# -----------------------------
 # 2. Excel 저장
+# -----------------------------
 output_dir = "spotify"
 os.makedirs(output_dir, exist_ok=True)
 kst = pytz.timezone("Asia/Seoul")
@@ -40,7 +43,18 @@ df = pd.DataFrame(tracks, columns=["순서", "제목", "아티스트명", "추�
 df.to_excel(file_path, index=False)
 print(f"Saved: {file_path}")
 
-# 3. Git add, commit, push
+# -----------------------------
+# 3. Git add, commit, push (PAT 사용)
+# -----------------------------
+PAT = os.environ.get("PAT_GITHUB")
+if not PAT:
+    raise Exception("PAT_GITHUB 환경변수 필요!")
+
+# remote URL에 PAT 포함
+remote_url = f"https://{PAT}@github.com/jongwoo-cho/melon.git"
+subprocess.run(["git", "remote", "set-url", "origin", remote_url], check=True)
+
+# git commit & push
 subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
 subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
 subprocess.run(["git", "add", file_path], check=True)
