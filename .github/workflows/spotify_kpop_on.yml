@@ -2,7 +2,7 @@ name: Daily Spotify K-Pop ON Save
 
 on:
   schedule:
-    - cron: "0 9 * * *"   # KST 18:00 = UTC 09:00
+    - cron: "0 9 * * *"  # KST 18:00 = UTC 09:00
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      # 3. Install required packages
+      # 3. Install dependencies
       - name: Install dependencies
         run: |
           pip install requests beautifulsoup4 pandas openpyxl pytz
@@ -30,18 +30,14 @@ jobs:
         run: |
           python scripts/spotify_kpop_on.py
 
-      # 5. Upload Excel to GitHub (API 방식, push 없이 확실히 동작)
-      - name: Upload Excel file via GitHub API
-        uses: peter-evans/create-or-update-file@v3
+      # 5. Upload Excel file via GitHub API (올바른 액션과 버전)
+      - name: Upload Excel file
+        uses: peter-evans/create-or-update-file@v4
         with:
-          path: spotify/${{ steps.get_file.outputs.file_name }}
+          path: spotify/spotify_kpop_on_${{ github.run_date }}.xlsx
           branch: main
           commit-message: "Daily Spotify scrape - ${{ github.run_date }}"
           author-name: GitHub Actions
           author-email: actions@github.com
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 6. Capture generated file name
-      - id: get_file
-        run: echo "::set-output name=file_name::spotify_kpop_on_$(date '+%Y-%m-%d').xlsx"
