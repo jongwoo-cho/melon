@@ -13,7 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          persist-credentials: true  # git push 가능
+          persist-credentials: true  # push 가능
 
       - name: Set up Python
         uses: actions/setup-python@v5
