@@ -27,9 +27,7 @@ soup = BeautifulSoup(html, "html.parser")
 
 tracks = []
 
-# Spotify 웹 페이지는 JS로 렌더링됨 → 추가 정보는 HTML에 바로 없을 수 있음
-# 따라서 제목/아티스트만 우선 추출
-# 순서대로 저장
+# Spotify 웹 페이지는 JS 렌더링 방식이므로 일부 정보는 HTML에 없음
 track_elements = soup.find_all("div", {"class": "tracklist-row__name"})
 
 for i, elem in enumerate(track_elements, start=1):
@@ -45,7 +43,7 @@ for i, elem in enumerate(track_elements, start=1):
     else:
         artists = "알 수 없음"
 
-    added_at = "알 수 없음"  # HTML에서는 추가일자 제공 안됨
+    added_at = "알 수 없음"
     tracks.append([i, title, artists, added_at])
 
 # ------------------------------------------------------
@@ -55,7 +53,7 @@ output_dir = "spotify"
 os.makedirs(output_dir, exist_ok=True)
 
 # ------------------------------------------------------
-# 4. 엑셀 저장
+# 4. 엑셀 파일 저장
 # ------------------------------------------------------
 kst = pytz.timezone("Asia/Seoul")
 date_str = datetime.now(kst).strftime("%Y-%m-%d")
