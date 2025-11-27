@@ -10,24 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true  # git push 가능
 
-      # 2. Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: |
           pip install requests beautifulsoup4 pandas openpyxl pytz
 
-      # 4. Run Python script (생성 + GitHub 업로드)
-      - name: Run scraping and upload
-        run: |
-          python scripts/spotify_kpop_on.py
-        env:
-          PAT_GITHUB: ${{ secrets.PAT_GITHUB }}
+      - name: Run scraping and push
+        run: python scripts/spotify_kpop_on.py
