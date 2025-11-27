@@ -30,7 +30,6 @@ for i, elem in enumerate(track_elements, start=1):
 # 2. Excel 저장
 output_dir = "spotify"
 os.makedirs(output_dir, exist_ok=True)
-
 kst = pytz.timezone("Asia/Seoul")
 date_str = datetime.now(kst).strftime("%Y-%m-%d")
 file_name = f"spotify_kpop_on_{date_str}.xlsx"
@@ -40,10 +39,10 @@ df = pd.DataFrame(tracks, columns=["순서", "제목", "아티스트명", "추�
 df.to_excel(file_path, index=False)
 print(f"Saved: {file_path}")
 
-# 3. Git add, commit, push (멜론 캡처 방식 그대로)
+# 3. Git add, commit, push (멜론 캡처 방식 동일, PAT 없이)
 subprocess.run(["git", "config", "--global", "user.name", "github-actions"], check=True)
 subprocess.run(["git", "config", "--global", "user.email", "github-actions@github.com"], check=True)
 subprocess.run(["git", "add", file_path], check=True)
 subprocess.run(["git", "commit", "-m", f"Daily Spotify scrape - {date_str}"], check=True)
-subprocess.run(["git", "push", "origin", "main"], check=True)
+subprocess.run(["git", "push"], check=True)
 print(f"Pushed {file_name} to GitHub")
