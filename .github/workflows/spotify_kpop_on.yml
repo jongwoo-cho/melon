@@ -10,33 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Repository checkout (token 없이도 기본 GITHUB_TOKEN 사용 가능)
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2. Python 환경 설정
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 3. 라이브러리 설치
       - name: Install requirements
         run: |
           pip install requests beautifulsoup4 pandas openpyxl pytz
 
-      # 4. 스크립트 실행
       - name: Run script
         run: |
           python scripts/spotify_kpop_on.py
 
-      # 5. 변경 사항 커밋 & push (자동 제공되는 GITHUB_TOKEN 사용)
       - name: Commit and push Excel file
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
           git add spotify/*.xlsx
           git commit -m "Daily Spotify scrape - $(date '+%Y-%m-%d')" || echo "No changes to commit"
-          git push origin HEAD
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/jongwoo-cho/melon.git HEAD
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
