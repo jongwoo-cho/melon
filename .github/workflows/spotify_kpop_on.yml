@@ -1,1 +1,33 @@
-ame: Daily Spotify K-Pop ON Save on: schedule: - cron: "0 9 * * *" # KST 18:00 = UTC 09:00 workflow_dispatch: jobs: scrape-and-upload: runs-on: ubuntu-latest steps: - name: Checkout repository uses: actions/checkout@v3 - name: Set up Python uses: actions/setup-python@v5 with: python-version: "3.11" - name: Install dependencies run: | pip install requests beautifulsoup4 pandas openpyxl pytz - name: Run scraping and upload run: | python scripts/spotify_kpop_on.py env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+name: Daily Spotify K-Pop ON Save
+
+on:
+  schedule:
+    - cron: "0 9 * * *"  # KST 18:00 = UTC 09:00
+  workflow_dispatch:
+
+jobs:
+  scrape-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 pandas openpyxl pytz
+
+      # 4. Run Python script (생성 + GitHub 업로드)
+      - name: Run scraping and upload
+        run: |
+          python scripts/spotify_kpop_on.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
