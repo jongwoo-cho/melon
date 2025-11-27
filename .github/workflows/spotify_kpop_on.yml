@@ -2,7 +2,7 @@ name: Daily Spotify K-Pop ON Save
 
 on:
   schedule:
-    - cron: "0 9 * * *"  # KST 18:00 = UTC 09:00
+    - cron: "0 9 * * *"  # UTC 09:00 = KST 18:00
   workflow_dispatch:
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
         run: python scripts/spotify_kpop_on.py
 
       - name: Upload Excel artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: spotify_kpop_on
           path: spotify_kpop_on_*.xlsx
