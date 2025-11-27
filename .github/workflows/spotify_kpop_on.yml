@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  scrape-and-upload:
+  scrape-and-save:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +22,11 @@ jobs:
         run: |
           pip install requests beautifulsoup4 pandas openpyxl pytz
 
-      - name: Run scraping and push
+      - name: Run scraping
         run: python scripts/spotify_kpop_on.py
-        env:
-          PAT_GITHUB: ${{ secrets.PAT_GITHUB }}
+
+      - name: Upload Excel artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: spotify_kpop_on
+          path: spotify_kpop_on_*.xlsx
