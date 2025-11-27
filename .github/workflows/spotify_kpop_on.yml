@@ -20,11 +20,11 @@ jobs:
 
       - name: Install requirements
         run: |
-          pip install spotipy pandas openpyxl pytz
+          pip install requests beautifulsoup4 pandas openpyxl pytz
 
       - name: Run script
         run: |
-          python scripts/spotify_kpop_on.py
+          python scripts/spotify_kpop_on_html.py
 
       - name: Commit and push Excel file
         run: |
