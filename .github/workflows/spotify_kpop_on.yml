@@ -10,29 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Repository 체크아웃 + PAT 인증
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
+      # 2. Python 환경 설정
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # 3. 라이브러리 설치
       - name: Install requirements
         run: |
           pip install requests beautifulsoup4 pandas openpyxl pytz
 
+      # 4. 스크립트 실행
       - name: Run script
         run: |
           python scripts/spotify_kpop_on.py
 
+      # 5. 변경 사항 커밋 & push
       - name: Commit and push Excel file
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config --global user.email "github-actions@github.com"
           git config --global user.name "github-actionsBot"
           git add spotify/*.xlsx
-          git commit -m "Daily Spotify scrape - $(date '+%Y-%m-%d')" || echo "No changes to commit"
-          git remote set-url origin https://$GH_PAT@github.com/jongwoo-cho/melon.git
-          git push origin main
+          git commit -m "Daily Spotify scrape - $(date '+%Y-%m
