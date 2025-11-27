@@ -5,9 +5,7 @@ import pytz
 import requests
 from bs4 import BeautifulSoup
 
-# ------------------------------------------------------
-# 1. Spotify K-Pop ON! 플레이리스트 HTML 요청
-# ------------------------------------------------------
+# Spotify K-Pop ON! 플레이리스트 HTML 요청
 playlist_url = "https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1"
 
 headers = {
@@ -20,9 +18,7 @@ if res.status_code != 200:
 
 html = res.text
 
-# ------------------------------------------------------
-# 2. BeautifulSoup으로 곡 정보 추출
-# ------------------------------------------------------
+# BeautifulSoup으로 곡 정보 추출
 soup = BeautifulSoup(html, "html.parser")
 
 tracks = []
@@ -46,15 +42,11 @@ for i, elem in enumerate(track_elements, start=1):
     added_at = "알 수 없음"
     tracks.append([i, title, artists, added_at])
 
-# ------------------------------------------------------
-# 3. spotify 폴더 자동 생성
-# ------------------------------------------------------
+# spotify 폴더 자동 생성
 output_dir = "spotify"
 os.makedirs(output_dir, exist_ok=True)
 
-# ------------------------------------------------------
-# 4. 엑셀 파일 저장
-# ------------------------------------------------------
+# 엑셀 파일 저장
 kst = pytz.timezone("Asia/Seoul")
 date_str = datetime.now(kst).strftime("%Y-%m-%d")
 
