@@ -24,7 +24,7 @@ jobs:
 
       - name: Run script
         run: |
-          python scripts/spotify_kpop_on_html.py
+          python scripts/spotify_kpop_on.py
 
       - name: Commit and push Excel file
         run: |
