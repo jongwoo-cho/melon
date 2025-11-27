@@ -1,37 +1,46 @@
-name: Apple Music Daily Scraper
-
-permissions:
-  contents: write  # ← 꼭 필요!
+name: Apple Music Scraper
 
 on:
-  schedule:
-    - cron: "0 9 * * *"   # 매일 18:00 KST
   workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
 
 jobs:
-  build:
+  scrape:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      # -----------------------------
+      # Install Python
+      # -----------------------------
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
+      # -----------------------------
+      # Install dependencies
+      # -----------------------------
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager openpyxl
+          pip install playwright
+          pip install openpyxl
+          python -m playwright install chromium
 
-      - name: Run scraper
+      # -----------------------------
+      # Run scraper
+      # -----------------------------
+      - name: Run Script
         run: python scripts/scrape_apple_music.py
 
-      - name: Commit result
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add .
-          git commit -m "Daily Apple Music scrape" || echo "No changes"
-          git push
+      # -----------------------------
+      # Upload Results
+      # -----------------------------
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-music-results
+          path: captures/
