@@ -49,13 +49,13 @@ df.to_excel(file_path, index=False)
 print(f"Saved: {file_path}")
 
 # -----------------------------
-# 3. GitHub 업로드 (API 방식)
+# 3. GitHub 업로드 (PAT 사용)
 # -----------------------------
 GITHUB_REPO = "jongwoo-cho/melon"  # 본인 repo 이름
 GITHUB_BRANCH = "main"
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_TOKEN = os.environ.get("PAT_GITHUB")
 if not GITHUB_TOKEN:
-    raise Exception("GITHUB_TOKEN 환경변수 필요!")
+    raise Exception("PAT_GITHUB 환경변수 필요!")
 
 with open(file_path, "rb") as f:
     content = f.read()
