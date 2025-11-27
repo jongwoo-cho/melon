@@ -1,0 +1,35 @@
+name: Daily Spotify K-Pop ON Save
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # KST 18:00 = UTC 09:00
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install requirements
+        run: |
+          pip install spotipy pandas openpyxl pytz
+
+      - name: Run script
+        run: |
+          python scripts/spotify_kpop_on.py
+
+      - name: Commit and push Excel file
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "github-actionsBot"
+          git add spotify/*.xlsx
+          git commit -m "Daily Spotify scrape - $(date '+%Y-%m-%d')" || echo "No changes to commit"
+          git push
