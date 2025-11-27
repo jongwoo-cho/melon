@@ -5,6 +5,7 @@ import pytz
 import requests
 from bs4 import BeautifulSoup
 
+# Spotify K-Pop ON! 플레이리스트 URL
 playlist_url = "https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1"
 headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -35,8 +36,10 @@ os.makedirs(output_dir, exist_ok=True)
 kst = pytz.timezone("Asia/Seoul")
 date_str = datetime.now(kst).strftime("%Y-%m-%d")
 
+file_name = f"spotify_kpop_on_{date_str}.xlsx"
+file_path = os.path.join(output_dir, file_name)
+
 df = pd.DataFrame(tracks, columns=["순서", "제목", "아티스트명", "추가한 날짜"])
-file_path = f"{output_dir}/spotify_kpop_on_{date_str}.xlsx"
 df.to_excel(file_path, index=False)
 
 print(f"Saved: {file_path}")
