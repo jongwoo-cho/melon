@@ -2,56 +2,65 @@ import os
 import pandas as pd
 from datetime import datetime
 import pytz
-from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials
+import requests
+from bs4 import BeautifulSoup
 
 # ------------------------------------------------------
-# 0. Spotify API 인증 (환경변수에 ID/SECRET 필요)
+# 1. Spotify K-Pop ON! 플레이리스트 HTML 요청
 # ------------------------------------------------------
-client_id = os.getenv("SPOTIFY_CLIENT_ID")
-client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+playlist_url = "https://open.spotify.com/playlist/37i9dQZF1DX9tPFwDMOaN1"
 
-if not client_id or not client_secret:
-    raise Exception("환경변수 SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET 설정 필요!")
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+}
 
-sp = Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=client_id,
-    client_secret=client_secret
-))
+res = requests.get(playlist_url, headers=headers)
+if res.status_code != 200:
+    raise Exception(f"페이지 요청 실패: {res.status_code}")
+
+html = res.text
 
 # ------------------------------------------------------
-# 1. K-Pop ON! 플레이리스트 데이터 가져오기
+# 2. BeautifulSoup으로 곡 정보 추출
 # ------------------------------------------------------
-playlist_id = "37i9dQZF1DX9tPFwDMOaN1"
-
-results = sp.playlist_items(playlist_id, additional_types=["track"], limit=100)
+soup = BeautifulSoup(html, "html.parser")
 
 tracks = []
-order = 1
 
-for item in results["items"]:
-    track = item["track"]
-    if not track:
-        continue
+# Spotify 웹 페이지는 JS로 렌더링됨 → 추가 정보는 HTML에 바로 없을 수 있음
+# 따라서 제목/아티스트만 우선 추출
+# 순서대로 저장
+track_elements = soup.find_all("div", {"class": "tracklist-row__name"})
 
-    title = track["name"]
-    artists = ", ".join([a["name"] for a in track["artists"]])
-    added_at = item["added_at"]
+for i, elem in enumerate(track_elements, start=1):
+    title_elem = elem.find("span")
+    if title_elem:
+        title = title_elem.get_text(strip=True)
+    else:
+        title = "알 수 없음"
 
-    tracks.append([order, title, artists, added_at])
-    order += 1
+    artist_elem = elem.find_next_sibling("a")
+    if artist_elem:
+        artists = artist_elem.get_text(strip=True)
+    else:
+        artists = "알 수 없음"
+
+    added_at = "알 수 없음"  # HTML에서는 추가일자 제공 안됨
+    tracks.append([i, title, artists, added_at])
 
 # ------------------------------------------------------
-# 2. 엑셀로 저장
+# 3. spotify 폴더 자동 생성
+# ------------------------------------------------------
+output_dir = "spotify"
+os.makedirs(output_dir, exist_ok=True)
+
+# ------------------------------------------------------
+# 4. 엑셀 저장
 # ------------------------------------------------------
 kst = pytz.timezone("Asia/Seoul")
 date_str = datetime.now(kst).strftime("%Y-%m-%d")
 
 df = pd.DataFrame(tracks, columns=["순서", "제목", "아티스트명", "추가한 날짜"])
-
-output_dir = "spotify"
-os.makedirs(output_dir, exist_ok=True)
-
 file_path = f"{output_dir}/spotify_kpop_on_{date_str}.xlsx"
 df.to_excel(file_path, index=False)
 
