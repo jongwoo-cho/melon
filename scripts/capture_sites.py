@@ -22,12 +22,13 @@ timestamp = now.strftime("%y%m%d_%H%M")
 OUTPUT_DIR = "screenshots"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# 사이트 정보
+# 사이트 정보 (✅ VIBE 추가)
 SITES = {
     "melon": "https://www.melon.com/",
     "genie": "https://www.genie.co.kr/",
     "bugs": "https://music.bugs.co.kr/",
-    "flo": "https://www.music-flo.com/"
+    "flo": "https://www.music-flo.com/",
+    "vibe": "https://vibe.naver.com/today"
 }
 
 # Chrome 옵션
@@ -46,7 +47,7 @@ wait = WebDriverWait(driver, 10)
 captured_files = []
 
 # -----------------------------------------------------------
-# 벅스 팝업 제거
+# 벅스 팝업 제거 (기존 그대로)
 # -----------------------------------------------------------
 def remove_bugs_popups(driver, timeout=6.0):
     try:
@@ -55,93 +56,87 @@ def remove_bugs_popups(driver, timeout=6.0):
             ".btnClose", ".lay-close", ".btnClosePop", ".pop_btn_close"
         ]
         for sel in close_btn_selectors:
-            els = driver.find_elements(By.CSS_SELECTOR, sel)
-            for e in els:
+            for e in driver.find_elements(By.CSS_SELECTOR, sel):
                 try:
                     driver.execute_script("arguments[0].scrollIntoView(true);", e)
                     e.click()
                 except:
                     pass
 
-        texts = ["닫기", "팝업닫기", "×", "✕", "Close", "close"]
-        for t in texts:
-            matches = driver.find_elements(By.XPATH, f"//*[text()[normalize-space()='{t}']]")
-            for m in matches:
-                try:
-                    m.click()
-                except:
-                    try:
-                        driver.execute_script("arguments[0].click();", m)
-                    except:
-                        pass
-
-        try:
-            body = driver.find_element(By.TAG_NAME, "body")
-            for _ in range(3):
-                body.send_keys(Keys.ESCAPE)
+        for _ in range(3):
+            try:
+                driver.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
                 time.sleep(0.2)
-        except:
-            pass
+            except:
+                pass
 
-        js = r"""
-        (function(timeout_ms){
-            function removeNode(n){
-                try{ if(n && n.parentNode) n.parentNode.removeChild(n); }catch(e){}
-            }
-            const selectors = [
-                '#layPop','#layer_pop','#popup','#popupLayer','.layer-popup','.pop_layer','.popup',
-                '.modal','.modal-bg','.modal-backdrop','.dimmed','.dimmedLayer','.popdim',
-                '.ly_wrap','.ly_pop','.pop_wrap','.eventLayer','.evt_layer'
+        driver.execute_script("""
+            const sel = [
+                '.popup','.modal','.dimmed','.layer-popup',
+                '.eventLayer','.evt_layer','.ly_pop','.pop_layer'
             ];
-
-            function strongRemove(){
-                selectors.forEach(sel => {
-                    document.querySelectorAll(sel).forEach(el => removeNode(el));
-                });
-                document.documentElement.style.overflow = 'auto';
-                document.body.style.overflow = 'auto';
-            }
-
-            for (let i = 0; i < 5; i++) strongRemove();
-
-            const interval = setInterval(strongRemove, 300);
-            setTimeout(() => clearInterval(interval), timeout_ms);
-        })(%d);
-        """ % int(timeout * 1000)
-
-        driver.execute_script(js)
+            sel.forEach(s => document.querySelectorAll(s).forEach(e => e.remove()));
+            document.body.style.overflow='auto';
+            document.documentElement.style.overflow='auto';
+        """)
         time.sleep(1)
         return True
-
     except:
         return False
 
 # -----------------------------------------------------------
-# FLO — 전체 페이지 캡처
+# FLO (기존 그대로)
 # -----------------------------------------------------------
 def handle_flo(driver):
-    # 팝업 제거 (기존 로직 그대로)
     try:
         driver.execute_script("""
             let sel = [
-                '.popup', '.pop', '.modal', '.layer', '.event-popup',
-                '[class*="Popup"]', '[id*="popup"]', '.cookie', '.cookie-popup'
+                '.popup', '.pop', '.modal', '.layer',
+                '[class*="Popup"]', '[id*="popup"]'
             ];
             sel.forEach(s => document.querySelectorAll(s).forEach(e => e.remove()));
-            document.body.style.overflow = 'auto';
-            document.documentElement.style.overflow = 'auto';
+            document.body.style.overflow='auto';
+            document.documentElement.style.overflow='auto';
         """)
     except:
         pass
-    time.sleep(1)
 
-    # 페이지 전체 높이 가져와서 창 크기 조정
+    time.sleep(1)
     try:
-        total_height = driver.execute_script("return document.body.scrollHeight")
-        driver.set_window_size(1920, total_height + 200)  # 200px 여유
-        time.sleep(1)
+        h = driver.execute_script("return document.body.scrollHeight")
+        driver.set_window_size(1920, h + 200)
     except:
         pass
+
+# -----------------------------------------------------------
+# ✅ VIBE 팝업 제거 (신규)
+# -----------------------------------------------------------
+def handle_vibe(driver):
+    try:
+        # ESC 반복
+        body = driver.find_element(By.TAG_NAME, "body")
+        for _ in range(4):
+            body.send_keys(Keys.ESCAPE)
+            time.sleep(0.2)
+    except:
+        pass
+
+    try:
+        driver.execute_script("""
+            const sel = [
+                '.popup','.modal','.layer','.dimmed',
+                '[class*="popup"]','[class*="layer"]',
+                '[id*="popup"]','[id*="layer"]',
+                '.app_download','.login_layer'
+            ];
+            sel.forEach(s => document.querySelectorAll(s).forEach(e => e.remove()));
+            document.body.style.overflow='auto';
+            document.documentElement.style.overflow='auto';
+        """)
+    except:
+        pass
+
+    time.sleep(1)
 
 # -----------------------------------------------------------
 # 사이트별 캡처
@@ -156,46 +151,46 @@ def capture_site(name, url):
         for _ in range(2):
             remove_bugs_popups(driver, timeout=3.0)
             time.sleep(0.5)
+    elif name == "vibe":
+        handle_vibe(driver)
     else:
         try:
             driver.execute_script("""
-                let elems = document.querySelectorAll('[class*="popup"], [id*="popup"], .dimmed, .overlay, .modal');
-                elems.forEach(e => e.remove());
-                document.body.style.overflow = 'auto';
-                document.documentElement.style.overflow = 'auto';
+                document.querySelectorAll(
+                    '[class*="popup"],[id*="popup"],.modal,.dimmed'
+                ).forEach(e => e.remove());
+                document.body.style.overflow='auto';
+                document.documentElement.style.overflow='auto';
             """)
         except:
             pass
 
     time.sleep(1)
-    screenshot_path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
-    driver.save_screenshot(screenshot_path)
-    captured_files.append(screenshot_path)
-    print(f"✅ {name} captured → {screenshot_path}")
+    path = os.path.join(OUTPUT_DIR, f"{name}_{timestamp}.png")
+    driver.save_screenshot(path)
+    captured_files.append(path)
+    print(f"✅ {name} captured → {path}")
 
 # -----------------------------------------------------------
 # 실행
 # -----------------------------------------------------------
-for site_name, site_url in SITES.items():
-    capture_site(site_name, site_url)
+for n, u in SITES.items():
+    capture_site(n, u)
 
 driver.quit()
 
 # -----------------------------------------------------------
-# PNG → PDF 변환
+# PNG → PDF
 # -----------------------------------------------------------
-pdf_path = os.path.abspath(os.path.join(OUTPUT_DIR, f"music_capture_{timestamp}.pdf"))
+pdf_path = os.path.join(OUTPUT_DIR, f"music_capture_{timestamp}.pdf")
 pdf = FPDF()
 
 for img_file in captured_files:
     img = Image.open(img_file)
-    pdf_w, pdf_h = 210, 297
-    img_w, img_h = img.size
-    ratio = min(pdf_w / img_w, pdf_h / img_h)
-    pdf_w_scaled, pdf_h_scaled = img_w * ratio, img_h * ratio
-
+    w, h = img.size
+    ratio = min(210 / w, 297 / h)
     pdf.add_page()
-    pdf.image(img_file, x=0, y=0, w=pdf_w_scaled, h=pdf_h_scaled)
+    pdf.image(img_file, x=0, y=0, w=w * ratio, h=h * ratio)
 
 pdf.output(pdf_path)
 print(f"✅ PDF saved → {pdf_path}")
